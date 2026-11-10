@@ -1,0 +1,302 @@
+/* Application shell: sidebar + header + content.
+   Logical properties keep the layout correct in RTL (Arabic) and LTR (English):
+   the sidebar is the first flex item, so it sits on the right in RTL and on
+   the left in LTR. */
+
+.app-shell {
+  display: flex;
+  min-block-size: 100vh;
+}
+
+/* Sidebar */
+.sidebar {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 30;
+  display: flex;
+  flex: 0 0 var(--sidebar-width);
+  flex-direction: column;
+  inline-size: var(--sidebar-width);
+  block-size: 100vh;
+  padding: 20px 16px;
+  overflow-y: auto;
+  background: linear-gradient(180deg, var(--color-navy) 0%, var(--color-navy-900) 100%);
+  color: #fff;
+}
+
+.sidebar__brand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 8px 20px;
+  margin-block-end: 8px;
+  border-block-end: 1px solid rgb(255 255 255 / 8%);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-inline-size: 0;
+  border-radius: var(--radius-sm);
+}
+
+.brand__mark {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  inline-size: 42px;
+  block-size: 42px;
+  border-radius: var(--radius-md);
+  background: var(--color-teal);
+  color: #fff;
+  box-shadow: 0 6px 14px rgb(21 157 154 / 35%);
+}
+
+.brand__text {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.brand__name {
+  font-size: 1.3rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: 0.06em;
+}
+
+.brand__tagline {
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: rgb(255 255 255 / 70%);
+}
+
+.sidebar__close {
+  display: none;
+}
+
+.sidebar__nav {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+.sidebar__section-label {
+  padding: 16px 12px 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgb(255 255 255 / 55%);
+}
+
+.sidebar__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sidebar__link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  inline-size: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: rgb(255 255 255 / 78%);
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.5;
+  text-align: start;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.sidebar__link:hover {
+  background: rgb(255 255 255 / 7%);
+  color: #fff;
+}
+
+.sidebar__link.is-active {
+  background: rgb(21 157 154 / 20%);
+  color: #fff;
+  font-weight: 600;
+}
+
+.sidebar__link.is-active::before {
+  content: '';
+  position: absolute;
+  inset-block: 8px;
+  inset-inline-start: -16px;
+  inline-size: 4px;
+  border-start-end-radius: 4px;
+  border-end-end-radius: 4px;
+  background: var(--color-teal);
+}
+
+.sidebar__link.is-active .icon {
+  color: var(--color-teal);
+}
+
+.sidebar__label {
+  min-inline-size: 0;
+}
+
+.sidebar__footer {
+  padding-block-start: 16px;
+  margin-block-start: 16px;
+  border-block-start: 1px solid rgb(255 255 255 / 8%);
+}
+
+.sidebar__logout[aria-disabled='true'] {
+  cursor: default;
+}
+
+.sidebar__soon {
+  margin-inline-start: auto;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 10%);
+  color: rgb(255 255 255 / 75%);
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.8;
+}
+
+.sidebar-backdrop {
+  display: none;
+}
+
+/* Main column */
+.app-main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.app-header {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-block-size: var(--header-height);
+  padding: 12px 32px;
+  border-block-end: 1px solid var(--color-border);
+  background: rgb(255 255 255 / 92%);
+  backdrop-filter: blur(8px);
+}
+
+.app-header__start {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-inline-size: 0;
+}
+
+.app-header__menu {
+  display: none;
+}
+
+.app-header__title {
+  overflow: hidden;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--color-navy);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.app-header__actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-content {
+  flex: 1;
+  inline-size: 100%;
+  max-inline-size: var(--content-max-width);
+  margin-inline: auto;
+  padding: 32px;
+}
+
+/* Tablet and small laptop: sidebar becomes an off-canvas drawer that slides
+   in from the inline-start edge (right in RTL, left in LTR). */
+@media (max-width: 1023.98px) {
+  .sidebar {
+    position: fixed;
+    inset-block: 0;
+    inset-inline-start: 0;
+    z-index: 40;
+    block-size: auto;
+    box-shadow: var(--shadow-lg);
+    visibility: hidden;
+    transform: translateX(-100%);
+    transition:
+      transform 0.25s ease,
+      visibility 0.25s;
+  }
+
+  [dir='rtl'] .sidebar {
+    transform: translateX(100%);
+  }
+
+  .sidebar.is-open {
+    visibility: visible;
+    transform: none;
+  }
+
+  .sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 35;
+    display: block;
+    background: rgb(15 23 42 / 45%);
+  }
+
+  .sidebar__close,
+  .app-header__menu {
+    display: inline-flex;
+  }
+
+  .app-header {
+    padding-inline: 20px;
+  }
+
+  .app-content {
+    padding: 24px 20px;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-header {
+    gap: 8px;
+    padding-inline: 16px;
+  }
+
+  .app-header__title {
+    font-size: 1.05rem;
+  }
+
+  .app-header__actions {
+    gap: 8px;
+  }
+
+  .app-content {
+    padding: 20px 16px;
+  }
+}

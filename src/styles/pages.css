@@ -1,0 +1,116 @@
+/* Page-level layout */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.section-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-block-end: 16px;
+}
+
+.section-heading h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-navy);
+}
+
+/* Dashboard: welcome card */
+.welcome-card {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 32px;
+  overflow: hidden;
+}
+
+.welcome-card::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: 4px;
+  background: linear-gradient(180deg, var(--color-teal) 0%, var(--color-navy) 100%);
+}
+
+.welcome-card::after {
+  content: '';
+  position: absolute;
+  inset-block-start: -80px;
+  inset-inline-end: -80px;
+  inline-size: 260px;
+  block-size: 260px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(21 157 154 / 16%) 0%, rgb(21 157 154 / 0%) 70%);
+  pointer-events: none;
+}
+
+.welcome-card__text {
+  position: relative;
+  display: flex;
+  flex: 1 1 320px;
+  flex-direction: column;
+  gap: 6px;
+  max-inline-size: 64ch;
+}
+
+.welcome-card__eyebrow {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-teal-700);
+}
+
+.welcome-card__title {
+  font-size: clamp(1.35rem, 1.1rem + 1vw, 1.75rem);
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--color-navy);
+}
+
+.welcome-card__subtitle {
+  color: var(--color-text-muted);
+}
+
+.welcome-card .button {
+  position: relative;
+  z-index: 1;
+}
+
+/* Dashboard: summary cards */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  gap: 20px;
+}
+
+.demo-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-block-start: 16px;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.demo-note .icon {
+  margin-block-start: 2px;
+}
+
+@media (max-width: 640px) {
+  .welcome-card {
+    padding: 24px 20px;
+  }
+
+  .welcome-card .button {
+    inline-size: 100%;
+  }
+}
