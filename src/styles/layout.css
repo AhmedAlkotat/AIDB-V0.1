@@ -73,8 +73,19 @@
   color: rgb(255 255 255 / 70%);
 }
 
+/* The close button (and the header menu button) are shown on every screen
+   size: on desktop they collapse/expand the docked sidebar, below 1024px
+   they close/open the drawer. */
 .sidebar__close {
-  display: none;
+  display: inline-flex;
+}
+
+/* Desktop: collapsed sidebar is removed from the layout so the main column
+   takes the full width. (Below 1024px the drawer uses .is-open instead.) */
+@media (min-width: 1024px) {
+  .app-shell.is-sidebar-collapsed .sidebar {
+    display: none;
+  }
 }
 
 .sidebar__nav {
@@ -206,7 +217,7 @@
 }
 
 .app-header__menu {
-  display: none;
+  display: inline-flex;
 }
 
 .app-header__title {
@@ -266,11 +277,6 @@
     z-index: 35;
     display: block;
     background: rgb(15 23 42 / 45%);
-  }
-
-  .sidebar__close,
-  .app-header__menu {
-    display: inline-flex;
   }
 
   .app-header {

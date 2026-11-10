@@ -1,54 +1,85 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Outlet, useLocation } from 'react-router'
+import { useMediaQuery } from '../../hooks/useMediaQuery.js'
 import { useTranslation } from '../../hooks/useTranslation.js'
 import { findNavigationItem } from '../../routes/navigation.js'
 import { Header } from './Header.jsx'
 import { Sidebar } from './Sidebar.jsx'
 
 const SIDEBAR_ID = 'app-sidebar'
+// Must match the desktop breakpoint in layout.css (drawer below 1024px).
+const DESKTOP_QUERY = '(min-width: 1024px)'
 
 // Application shell: sidebar + header + routed page content.
+//
+// The sidebar has two independent states:
+// - Desktop (>= 1024px): docked column that can be collapsed so the content
+//   uses the full width. Visible by default.
+// - Tablet/mobile (< 1024px): off-canvas drawer. Hidden by default.
+// The header menu button and the sidebar close button act on whichever
+// state applies to the current screen size.
 export function AppLayout() {
   const { t } = useTranslation()
   const { pathname } = useLocation()
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const isDesktop = useMediaQuery(DESKTOP_QUERY)
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(false)
+  const menuButtonRef = useRef(null)
+
+  const isSidebarVisible = isDesktop ? !isDesktopCollapsed : isDrawerOpen
+  const isDrawerActive = !isDesktop && isDrawerOpen
 
   const currentItem = findNavigationItem(pathname)
   const pageTitle = t(currentItem ? currentItem.labelKey : 'pages.notFound.title')
 
-  const closeSidebar = useCallback(() => setIsSidebarOpen(false), [])
-  const toggleSidebar = useCallback(() => setIsSidebarOpen((open) => !open), [])
+  // Closes only the mobile drawer (used after following a link, so the
+  // docked desktop sidebar stays open while navigating).
+  const closeDrawer = useCallback(() => setIsDrawerOpen(false), [])
+
+  // Close button inside the sidebar. Focus returns to the menu button, since
+  // the close button itself disappears.
+  const closeSidebar = useCallback(() => {
+    if (isDesktop) setIsDesktopCollapsed(true)
+    else setIsDrawerOpen(false)
+    menuButtonRef.current?.focus()
+  }, [isDesktop])
+
+  const toggleSidebar = useCallback(() => {
+    if (isDesktop) setIsDesktopCollapsed((collapsed) => !collapsed)
+    else setIsDrawerOpen((open) => !open)
+  }, [isDesktop])
 
   useEffect(() => {
     document.title = `${pageTitle} | ${t('app.name')}`
   }, [pageTitle, t])
 
   useEffect(() => {
-    if (!isSidebarOpen) return undefined
+    if (!isDrawerActive) return undefined
     function handleKeyDown(event) {
-      if (event.key === 'Escape') setIsSidebarOpen(false)
+      if (event.key === 'Escape') setIsDrawerOpen(false)
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isSidebarOpen])
+  }, [isDrawerActive])
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${isDesktopCollapsed ? ' is-sidebar-collapsed' : ''}`}>
       <a href="#main-content" className="skip-link">
         {t('a11y.skipToContent')}
       </a>
 
-      <Sidebar id={SIDEBAR_ID} isOpen={isSidebarOpen} onClose={closeSidebar} />
-      {isSidebarOpen && (
-        <div className="sidebar-backdrop" aria-hidden="true" onClick={closeSidebar} />
+      <Sidebar id={SIDEBAR_ID} isOpen={isDrawerOpen} onClose={closeSidebar} onNavigate={closeDrawer} />
+      {isDrawerActive && (
+        <div className="sidebar-backdrop" aria-hidden="true" onClick={closeDrawer} />
       )}
 
       <div className="app-main">
         <Header
           title={pageTitle}
           sidebarId={SIDEBAR_ID}
-          isSidebarOpen={isSidebarOpen}
+          isSidebarOpen={isSidebarVisible}
           onMenuToggle={toggleSidebar}
+          menuButtonRef={menuButtonRef}
         />
         <main id="main-content" className="app-content" tabIndex={-1}>
           <Outlet />

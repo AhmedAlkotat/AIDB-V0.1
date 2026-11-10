@@ -114,3 +114,185 @@
     inline-size: 100%;
   }
 }
+
+/* Page intro (title + description) */
+.page-intro {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 24px 28px;
+}
+
+.page-intro__icon {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  inline-size: 52px;
+  block-size: 52px;
+  border-radius: var(--radius-md);
+  background: var(--color-teal-50);
+  color: var(--color-teal-700);
+}
+
+.page-intro__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-inline-size: 72ch;
+}
+
+.page-intro__title {
+  font-size: clamp(1.2rem, 1.05rem + 0.6vw, 1.45rem);
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--color-navy);
+}
+
+.page-intro__description {
+  color: var(--color-text-muted);
+}
+
+/* Upload document page */
+
+/* The upload page uses all available width (no global 1320px content cap),
+   so the preview grows when the sidebar is collapsed. Scoped with :has() so
+   other pages keep the shared max width. */
+.app-content:has(> .upload-page) {
+  max-inline-size: none;
+}
+
+.upload-page {
+  /* Columns respond to the page's own width (which changes when the
+     sidebar opens or closes), not to the viewport. */
+  container: upload-page / inline-size;
+  /* Height of the preview frame: as tall as the viewport allows. */
+  --preview-frame-height: clamp(340px, 62vh, 760px);
+}
+
+.upload-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.upload-layout__side,
+.upload-layout__preview {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-inline-size: 0;
+}
+
+.upload-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px;
+}
+
+.upload-card--compact {
+  padding: 12px;
+}
+
+.upload-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: var(--color-navy-50);
+  color: var(--color-navy);
+}
+
+.upload-note .icon {
+  margin-block-start: 2px;
+  color: var(--color-teal-700);
+}
+
+.upload-note__title {
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.upload-note__text {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.upload-actions-card {
+  padding: 18px;
+}
+
+.upload-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.upload-actions__start {
+  inline-size: 100%;
+  min-block-size: 48px;
+  font-size: 1rem;
+}
+
+.upload-actions__hint {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.upload-actions__privacy {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding-block-start: 12px;
+  border-block-start: 1px solid var(--color-border);
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.upload-actions__privacy .icon {
+  margin-block-start: 3px;
+}
+
+/* Wide content area: controls ~30% at the inline start, preview ~70% at the
+   inline end. Grid follows the document direction, so in Arabic (RTL) the
+   controls sit on the right and the preview on the left; English mirrors
+   this. Narrower than 860px (tablet/mobile, or a small laptop with the
+   sidebar open): single column. */
+@container upload-page (min-width: 860px) {
+  .upload-layout {
+    --preview-frame-height: max(480px, calc(100vh - var(--header-height) - 190px));
+    grid-template-columns: minmax(280px, 30fr) minmax(0, 70fr);
+  }
+
+  .upload-layout__preview {
+    position: sticky;
+    inset-block-start: calc(var(--header-height) + 16px);
+  }
+}
+
+@media (max-width: 640px) {
+  .page-intro {
+    padding: 20px;
+  }
+
+  .page-intro__icon {
+    inline-size: 44px;
+    block-size: 44px;
+  }
+
+  .upload-card,
+  .upload-actions-card {
+    padding: 14px;
+  }
+
+  .upload-page {
+    --preview-frame-height: clamp(300px, 60vh, 560px);
+  }
+
+  .upload-layout:not(.has-file) .preview__frame {
+    block-size: auto;
+    min-block-size: 220px;
+  }
+}

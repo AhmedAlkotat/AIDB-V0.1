@@ -3,13 +3,14 @@ import { Icon } from '../common/Icon.jsx'
 import { LanguageSwitcher } from './LanguageSwitcher.jsx'
 import { UserBadge } from './UserBadge.jsx'
 
-export function Header({ title, sidebarId, isSidebarOpen, onMenuToggle }) {
+export function Header({ title, sidebarId, isSidebarOpen, onMenuToggle, menuButtonRef }) {
   const { t } = useTranslation()
 
   return (
     <header className="app-header">
       <div className="app-header__start">
         <button
+          ref={menuButtonRef}
           type="button"
           className="icon-button app-header__menu"
           aria-label={isSidebarOpen ? t('nav.closeMenu') : t('nav.openMenu')}

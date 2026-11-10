@@ -32,13 +32,15 @@ function SidebarNavList({ items, onNavigate }) {
 
 // Sits at the inline start of the layout: right in Arabic (RTL), left in
 // English (LTR). Below 1024px it becomes an off-canvas drawer.
-export function Sidebar({ id, isOpen, onClose }) {
+// `isOpen` controls the mobile drawer; `onClose` is the close button;
+// `onNavigate` runs after following a link (closes the mobile drawer only).
+export function Sidebar({ id, isOpen, onClose, onNavigate }) {
   const { t } = useTranslation()
 
   return (
     <aside id={id} className={`sidebar${isOpen ? ' is-open' : ''}`}>
       <div className="sidebar__brand">
-        <BrandLogo onNavigate={onClose} />
+        <BrandLogo onNavigate={onNavigate} />
         <button
           type="button"
           className="icon-button icon-button--on-dark sidebar__close"
@@ -51,9 +53,9 @@ export function Sidebar({ id, isOpen, onClose }) {
 
       <nav className="sidebar__nav" aria-label={t('nav.ariaLabel')}>
         <p className="sidebar__section-label">{t('nav.sections.main')}</p>
-        <SidebarNavList items={mainItems} onNavigate={onClose} />
+        <SidebarNavList items={mainItems} onNavigate={onNavigate} />
         <p className="sidebar__section-label">{t('nav.sections.system')}</p>
-        <SidebarNavList items={systemItems} onNavigate={onClose} />
+        <SidebarNavList items={systemItems} onNavigate={onNavigate} />
       </nav>
 
       <div className="sidebar__footer">
