@@ -4,19 +4,36 @@ import { Icon } from '../components/common/Icon.jsx'
 import { DocumentDropZone } from '../components/upload/DocumentDropZone.jsx'
 import { DocumentPreview } from '../components/upload/DocumentPreview.jsx'
 import { FileInfoPanel } from '../components/upload/FileInfoPanel.jsx'
+import { PageSelectionPanel } from '../components/upload/PageSelectionPanel.jsx'
 import { MAX_FILES_PER_UPLOAD, MAX_UPLOAD_SIZE_BYTES, SUPPORTED_FORMAT_NAMES } from '../constants/upload.js'
 import { useFileSizeFormatter } from '../hooks/useFileSizeFormatter.js'
 import { useObjectUrl } from '../hooks/useObjectUrl.js'
+import { PDF_PAGE_COUNT_STATUS, usePdfPageCount } from '../hooks/usePdfPageCount.js'
 import { useTranslation } from '../hooks/useTranslation.js'
 import {
+  createProcessingRequest,
   ProcessingNotConnectedError,
   submitDocumentForProcessing,
 } from '../services/documentProcessingService.js'
 import { FILE_ERROR, validateDocumentFile } from '../utils/documentFile.js'
+import { getAllPages, PAGE_SELECTION_MODE, parsePageSelection } from '../utils/pageSelection.js'
+
+// Why "Start processing" is disabled (maps to upload.actions.blocked.*).
+function getStartBlockReason(selected, pdf, selectedPages) {
+  if (!selected) return 'noFile'
+  if (selected.type.kind !== 'pdf') return null
+  if (pdf.status === PDF_PAGE_COUNT_STATUS.loading) return 'readingPdf'
+  if (pdf.status !== PDF_PAGE_COUNT_STATUS.ready) return 'pdfError'
+  if (!selectedPages) return 'pageSelection'
+  return null
+}
 
 // Upload Document page (Phase 2): select one document, validate and preview
 // it locally. The file lives only in component state (browser memory); it is
 // not uploaded or stored, and AI processing is not connected yet.
+// For PDFs the page count is read locally (PDF.js) and the user can choose
+// all pages or specific pages; the original file is always kept whole and
+// the selected page numbers are passed separately in the request.
 //
 // Desktop layout: controls column (~35%) at the inline start, preview (~65%)
 // at the inline end — i.e. controls right / preview left in Arabic (RTL),
@@ -38,6 +55,30 @@ export default function UploadDocumentPage() {
   // 'notConnected' | 'failed' | null
   const [processingNotice, setProcessingNotice] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  // Page selection (PDF only). Reset whenever the file changes.
+  const [pageMode, setPageMode] = useState(PAGE_SELECTION_MODE.all)
+  const [pageRangeInput, setPageRangeInput] = useState('')
+
+  const isPdf = selected?.type.kind === 'pdf'
+  const pdf = usePdfPageCount(isPdf ? selected.file : null)
+
+  // Images are single-page documents.
+  let totalPages = null
+  if (selected && !isPdf) totalPages = 1
+  else if (pdf.status === PDF_PAGE_COUNT_STATUS.ready) totalPages = pdf.pageCount
+
+  const pageSelection =
+    isPdf && totalPages && pageMode === PAGE_SELECTION_MODE.selected
+      ? parsePageSelection(pageRangeInput, totalPages)
+      : null
+  let selectedPages = null
+  if (totalPages) {
+    if (pageMode === PAGE_SELECTION_MODE.all || !isPdf) selectedPages = getAllPages(totalPages)
+    else if (pageSelection?.ok) selectedPages = pageSelection.pages
+  }
+
+  const startBlockReason = getStartBlockReason(selected, pdf, selectedPages)
+  const canStart = !startBlockReason && !isSubmitting
 
   // After removal the full drop zone (with its browse button) is rendered
   // again; move keyboard focus there once it exists.
@@ -67,8 +108,24 @@ export default function UploadDocumentPage() {
     }
 
     setError(null)
+    resetPageSelection()
     // Revokes the previous preview URL (if replacing) before creating a new one.
     setSelected({ file, type: result.type, previewUrl: createObjectUrl(file) })
+  }
+
+  function resetPageSelection() {
+    setPageMode(PAGE_SELECTION_MODE.all)
+    setPageRangeInput('')
+  }
+
+  function handlePageModeChange(mode) {
+    setPageMode(mode)
+    setProcessingNotice(null)
+  }
+
+  function handlePageRangeInputChange(value) {
+    setPageRangeInput(value)
+    setProcessingNotice(null)
   }
 
   function handleReplace() {
@@ -81,14 +138,23 @@ export default function UploadDocumentPage() {
     setSelected(null)
     setError(null)
     setProcessingNotice(null)
+    resetPageSelection()
   }
 
   async function handleStartProcessing() {
-    if (!selected || isSubmitting) return
+    if (!canStart) return
     setIsSubmitting(true)
     setProcessingNotice(null)
     try {
-      await submitDocumentForProcessing(selected.file)
+      // The complete original file, with the selected pages stored separately.
+      const request = createProcessingRequest({
+        file: selected.file,
+        documentKind: selected.type.kind,
+        totalPages,
+        mode: isPdf ? pageMode : PAGE_SELECTION_MODE.all,
+        pages: selectedPages,
+      })
+      await submitDocumentForProcessing(request)
     } catch (submitError) {
       setProcessingNotice(submitError instanceof ProcessingNotConnectedError ? 'notConnected' : 'failed')
     } finally {
@@ -122,16 +188,16 @@ export default function UploadDocumentPage() {
       <button
         type="button"
         className="button button--primary upload-actions__start"
-        disabled={!selected || isSubmitting}
-        aria-describedby={selected ? undefined : 'start-processing-hint'}
+        disabled={!canStart}
+        aria-describedby={startBlockReason ? 'start-processing-hint' : undefined}
         onClick={handleStartProcessing}
       >
         <Icon name="sparkles" />
         {isSubmitting ? t('upload.actions.starting') : t('upload.actions.start')}
       </button>
-      {!selected && (
+      {startBlockReason && (
         <p id="start-processing-hint" className="upload-actions__hint">
-          {t('upload.actions.startHint')}
+          {startBlockReason === 'noFile' ? t('upload.actions.startHint') : t(`upload.actions.blocked.${startBlockReason}`)}
         </p>
       )}
 
@@ -174,9 +240,23 @@ export default function UploadDocumentPage() {
               <FileInfoPanel
                 file={selected.file}
                 documentType={selected.type}
+                pageCountStatus={isPdf ? pdf.status : PDF_PAGE_COUNT_STATUS.ready}
+                pageCount={totalPages}
                 onReplace={handleReplace}
                 onRemove={handleRemove}
               >
+                {isPdf && (
+                  <PageSelectionPanel
+                    key={selected.previewUrl}
+                    pdf={pdf}
+                    mode={pageMode}
+                    onModeChange={handlePageModeChange}
+                    rangeInput={pageRangeInput}
+                    onRangeInputChange={handlePageRangeInputChange}
+                    selection={pageSelection}
+                    selectedPages={selectedPages}
+                  />
+                )}
                 {processingActions}
               </FileInfoPanel>
               {errorAlert}

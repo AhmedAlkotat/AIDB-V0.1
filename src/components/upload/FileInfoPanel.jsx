@@ -1,15 +1,36 @@
 import { useFileSizeFormatter } from '../../hooks/useFileSizeFormatter.js'
+import { PDF_PAGE_COUNT_STATUS } from '../../hooks/usePdfPageCount.js'
 import { useTranslation } from '../../hooks/useTranslation.js'
+import { formatNumber } from '../../i18n/translations.js'
 import { Icon } from '../common/Icon.jsx'
 
 // Compact panel for the selected document: name, type, size, Replace and
 // Remove actions. `children` renders below (the processing actions).
 // `documentType` is an entry of ACCEPTED_DOCUMENT_TYPES.
-// Page count is intentionally not shown: it cannot be read reliably without
-// a PDF parsing library.
-export function FileInfoPanel({ file, documentType, onReplace, onRemove, children }) {
-  const { t } = useTranslation()
+// `pageCountStatus` (a PDF_PAGE_COUNT_STATUS value) and `pageCount` describe
+// the page count: read with PDF.js for PDFs, always 1 for images.
+export function FileInfoPanel({
+  file,
+  documentType,
+  pageCountStatus = PDF_PAGE_COUNT_STATUS.ready,
+  pageCount = null,
+  onReplace,
+  onRemove,
+  children,
+}) {
+  const { t, language } = useTranslation()
   const formatFileSize = useFileSizeFormatter()
+
+  let pagesText = t('upload.file.pagesUnavailable')
+  if (pageCountStatus === PDF_PAGE_COUNT_STATUS.loading) pagesText = t('upload.file.pagesLoading')
+  else if (pageCountStatus === PDF_PAGE_COUNT_STATUS.ready && pageCount) pagesText = formatNumber(pageCount, language)
+
+  let badge = <span className="badge badge--success">{t('upload.file.ready')}</span>
+  if (pageCountStatus === PDF_PAGE_COUNT_STATUS.loading) {
+    badge = <span className="badge badge--neutral">{t('upload.file.reading')}</span>
+  } else if (pageCountStatus === PDF_PAGE_COUNT_STATUS.error) {
+    badge = <span className="badge badge--neutral">{t('upload.file.notReady')}</span>
+  }
 
   return (
     <section className="card file-panel" aria-labelledby="selected-file-heading">
@@ -17,7 +38,7 @@ export function FileInfoPanel({ file, documentType, onReplace, onRemove, childre
         <h3 id="selected-file-heading" className="file-panel__heading">
           {t('upload.file.heading')}
         </h3>
-        <span className="badge badge--success">{t('upload.file.ready')}</span>
+        {badge}
       </div>
 
       <div className="file-panel__file">
@@ -40,6 +61,10 @@ export function FileInfoPanel({ file, documentType, onReplace, onRemove, childre
             <div className="file-panel__row">
               <dt>{t('upload.file.size')}</dt>
               <dd>{formatFileSize(file.size)}</dd>
+            </div>
+            <div className="file-panel__row">
+              <dt>{t('upload.file.pages')}</dt>
+              <dd>{pagesText}</dd>
             </div>
           </div>
         </dl>

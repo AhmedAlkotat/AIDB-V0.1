@@ -11,7 +11,8 @@ backend services, and authentication are future work.
 
 ## Development
 
-Use Node.js 22.12+ (Node.js 24 LTS recommended) and npm.
+Use Node.js 22.13+ (Node.js 24 LTS recommended) and npm. 22.13 is the minimum
+required by PDF.js (`pdfjs-dist`).
 
 ```sh
 npm install
@@ -24,6 +25,27 @@ npm run preview
 Open the local URL printed by Vite. Run `build` before using `preview` to check
 the production build locally.
 
+## Upload Document page
+
+One document per upload (PDF, JPG, JPEG or PNG). The maximum size defaults to
+10 MB and can be changed with `VITE_MAX_UPLOAD_SIZE_MB` (e.g. in `.env.local`);
+10 MB is not a final system requirement.
+
+For PDFs the page count is read locally with PDF.js (`pdfjs-dist`, pinned to an
+exact version, **legacy build** so it also runs on older browsers). The library
+and its worker are bundled by Vite and loaded lazily only when a PDF is
+selected; nothing is fetched from a CDN, so it works offline. The user can
+process all pages (default) or type page numbers and ranges (`1-3, 5, 8`;
+Arabic digits are accepted). Password-protected PDFs are blocked for now.
+Images are treated as single-page documents.
+
+`createProcessingRequest()` in `src/services/documentProcessingService.js`
+builds the frontend request: the complete, unchanged original file plus the
+selected page numbers stored separately (`pageSelection.pages`). The service is
+still **not connected** to any backend or AI, so nothing is sent or processed
+and no result is ever fabricated. The later integration only needs to replace
+the body of `submitDocumentForProcessing`.
+
 ## Structure
 
 ```text
@@ -31,17 +53,21 @@ public/                Static files served directly
 src/
   assets/              Imported images and other assets
   components/
-    common/            Icon, StatCard, DemoBadge, PlaceholderPage
+    common/            Icon, Alert, StatCard, DemoBadge, PlaceholderPage
     layout/            AppLayout, Sidebar, Header, BrandLogo,
                        LanguageSwitcher, UserBadge
+    upload/            DocumentDropZone, DocumentPreview, FileInfoPanel,
+                       PageSelectionPanel, PdfViewer, ImageViewer
   constants/           User roles (not enforced yet)
   contexts/            Language context and provider
   data/mock/           DEMO DATA ONLY (dashboard stats, demo user)
-  hooks/               useLanguage, useTranslation
+  hooks/               useLanguage, useTranslation, usePdfPageCount, ...
   i18n/                Arabic/English interface text and translate()
   pages/               Dashboard and placeholder pages
   routes/              Paths, sidebar navigation config, AppRoutes
-  services/            Future service modules (reserved)
+  services/            documentProcessingService (not connected),
+                       pdfMetadataService (local PDF.js page count)
+  utils/               documentFile (validation), pageSelection (ranges)
   styles/              global (tokens), layout, components, pages
   App.jsx              Renders the routes
   main.jsx             React entry point: LanguageProvider + BrowserRouter
