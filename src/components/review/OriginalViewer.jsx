@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from '../../hooks/useTranslation.js'
 import { openPdfDocument } from '../../services/pdfDocumentService.js'
 import { Icon } from '../common/Icon.jsx'
+import { getFitContainerWidth } from './fitWidth.js'
 import { getImageLayout } from './imageLayout.js'
 import { PreviewMessage } from '../upload/PreviewMessage.jsx'
 
@@ -11,6 +12,23 @@ const ZOOM_STEP = 1.25
 const RENDER_DELAY_MS = 90
 
 const clampZoom = (value) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value))
+
+// Width of a classic (non-overlay) scrollbar in this browser; 0 for overlay scrollbars.
+function measureScrollbarWidth() {
+  const probe = document.createElement('div')
+  probe.style.cssText = 'position:absolute;visibility:hidden;overflow:scroll;width:100px;height:100px'
+  document.body.appendChild(probe)
+  const width = probe.offsetWidth - probe.clientWidth
+  probe.remove()
+  return width
+}
+
+// Reads the frame's fit width (see fitWidth.js for why it must not depend on the scrollbar).
+function measureFitWidth(container, scrollbarWidth) {
+  const style = getComputedStyle(container)
+  const borderWidth = (parseFloat(style.borderLeftWidth) || 0) + (parseFloat(style.borderRightWidth) || 0)
+  return getFitContainerWidth({ borderBoxWidth: container.getBoundingClientRect().width, borderWidth, scrollbarWidth })
+}
 
 // Opens the PDF once and releases it when the file changes or the viewer goes away.
 function usePdfDocument(file, isPdf) {
@@ -99,17 +117,19 @@ export function OriginalViewer({ file, pageNumber }) {
     }
   }, [pageNumber])
 
-  // Follow the size of the panel (it can be resized with the divider).
+  // Follow the size of the panel (it can be resized with the divider). Only the BORDER BOX is
+  // observed: it does not change when a scrollbar appears or disappears (see getFitContainerWidth).
   useEffect(() => {
     const container = containerRef.current
     if (!container) return undefined
+    const scrollbarWidth = measureScrollbarWidth()
     let timer = null
-    const observer = new ResizeObserver(([entry]) => {
+    const observer = new ResizeObserver(() => {
       clearTimeout(timer)
-      timer = setTimeout(() => setContainerWidth(Math.floor(entry.contentRect.width)), 120)
+      timer = setTimeout(() => setContainerWidth(measureFitWidth(container, scrollbarWidth)), 120)
     })
-    observer.observe(container)
-    setContainerWidth(Math.floor(container.clientWidth))
+    observer.observe(container, { box: 'border-box' })
+    setContainerWidth(measureFitWidth(container, scrollbarWidth))
     return () => {
       clearTimeout(timer)
       observer.disconnect()
@@ -186,7 +206,7 @@ export function OriginalViewer({ file, pageNumber }) {
     if (isPdf) {
       return (
         <div className="original-viewer__page">
-          <canvas ref={canvasRef} aria-label={t('review.viewer.canvasLabel', { page: pageNumber })} role="img" />
+          <canvas ref={canvasRef} dir="ltr" aria-label={t('review.viewer.canvasLabel', { page: pageNumber })} role="img" />
         </div>
       )
     }

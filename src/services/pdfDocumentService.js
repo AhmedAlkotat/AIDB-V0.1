@@ -73,6 +73,15 @@ export async function openPdfDocument(file) {
       if (mine !== generation) return null
 
       const viewport = page.getViewport({ scale, rotation: (page.rotate + rotation) % 360 })
+      // A canvas 2D context draws text in the direction it INHERITS from the page
+      // (`ctx.direction` defaults to "inherit"). In the Arabic interface that is rtl, and
+      // PDF.js, which positions every glyph itself, then gets its text runs laid out right to
+      // left: Arabic letters come apart and spacing is wrong. The page image is LTR geometry
+      // by definition (the PDF's own text direction is already in the glyph positions).
+      canvas.dir = 'ltr'
+      canvas.style.direction = 'ltr'
+      // For diagnostics and the browser checks: the exact scale this render used.
+      canvas.dataset.renderScale = String(scale)
       const outputScale = getOutputScale(viewport.width, viewport.height, devicePixelRatio)
       canvas.width = Math.max(1, Math.floor(viewport.width * outputScale))
       canvas.height = Math.max(1, Math.floor(viewport.height * outputScale))

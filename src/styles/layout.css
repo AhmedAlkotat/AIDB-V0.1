@@ -250,6 +250,12 @@ html {
   padding: 32px;
 }
 
+/* Must come AFTER .app-content (same specificity, the later rule wins): the review workspace
+   uses the whole width, the other pages keep the readable maximum. */
+.app-content--wide {
+  max-inline-size: none;
+}
+
 /* Tablet and small laptop: sidebar becomes an off-canvas drawer that slides
    in from the inline-start edge (right in RTL, left in LTR). */
 @media (max-width: 1023.98px) {

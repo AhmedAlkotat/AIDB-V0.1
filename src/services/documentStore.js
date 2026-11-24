@@ -16,8 +16,10 @@
 //   setLastVisitedPage(id, pageNumber)
 //   subscribe(listener)  -> unsubscribe
 //
-// A record: { id, name, file, usesMockProcessing, kind, createdAt, updatedAt,
+// A record: { id, name, file, usesMockProcessing, kind, ownerId, createdAt, updatedAt,
 //             approval: { status }, lastVisitedPage, snapshot }
+// `ownerId` is the uploading user (null when unknown); who may see a record is decided
+// by domain/document/access.js, not by the store.
 // `snapshot` is the serialized canonical document (see serializeDocument with
 // includeOriginalExtraction: true), i.e. plain JSON.
 
@@ -46,6 +48,7 @@ function summarize(record) {
     id: record.id,
     name: record.name,
     kind: record.kind,
+    ownerId: record.ownerId,
     usesMockProcessing: record.usesMockProcessing,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
@@ -74,7 +77,7 @@ export function createMemoryDocumentStore({ now = () => new Date().toISOString()
   return {
     isDurable: false,
 
-    create({ name, file = null, snapshot, kind = 'upload', usesMockProcessing = true, approval, lastVisitedPage = null, id }) {
+    create({ name, file = null, snapshot, kind = 'upload', usesMockProcessing = true, approval, lastVisitedPage = null, id, ownerId = null }) {
       const recordId = id ?? nextId()
       const timestamp = now()
       records.set(recordId, {
@@ -82,6 +85,7 @@ export function createMemoryDocumentStore({ now = () => new Date().toISOString()
         name,
         file,
         kind,
+        ownerId,
         usesMockProcessing,
         createdAt: timestamp,
         updatedAt: timestamp,

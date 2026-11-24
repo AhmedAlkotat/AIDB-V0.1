@@ -1,9 +1,9 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { useMediaQuery } from '../../hooks/useMediaQuery.js'
 import { useTranslation } from '../../hooks/useTranslation.js'
+import { clampSplitRatio, DIVIDER_PX, ratioFromDistance } from './splitMath.js'
 
 const STACK_QUERY = '(max-width: 899.98px)'
-const DIVIDER_PX = 14
 const KEY_STEP = 0.02
 
 // Two panels side by side that the user can resize by dragging the divider (or
@@ -17,6 +17,11 @@ const KEY_STEP = 0.02
 //     direction, not only on the window: at 1024px with the sidebar open the
 //     content area is ~673px, less than 320 + 14 + 360.
 // Otherwise (enough room) they stay side by side.
+//
+// The two columns are `fr` tracks whose factors add up to exactly 1, with NO pixel minimums in
+// the CSS: the minimum widths are enforced by clamping the ratio. (With `minmax(320px, 0.25fr)`
+// style tracks, a track held at its minimum leaves a flex sum below 1, and CSS Grid then gives
+// the other track only that fraction of the free space: up to ~250px stayed empty.)
 export function SplitPane({ start, end, defaultRatio = 0.5, minStartPx = 320, minEndPx = 360 }) {
   const { t, direction } = useTranslation()
   const isNarrowWindow = useMediaQuery(STACK_QUERY)
@@ -38,16 +43,10 @@ export function SplitPane({ start, end, defaultRatio = 0.5, minStartPx = 320, mi
     return () => observer.disconnect()
   }, [])
 
-  // Keeps both panels at least their minimum width for a container of `width` px.
-  const clampTo = useCallback(
-    (value, width) => {
-      if (!width || width <= 0) return value
-      const min = minStartPx / width
-      const max = 1 - minEndPx / width
-      return min > max ? 0.5 : Math.min(max, Math.max(min, value))
-    },
-    [minStartPx, minEndPx],
-  )
+  // `ratio` is the share of the width left after the divider (the two panels together) that
+  // goes to the first panel. Keeps both panels at least their minimum width for a container of
+  // `width` px.
+  const clampTo = useCallback((value, width) => clampSplitRatio(value, width, { minStartPx, minEndPx }), [minStartPx, minEndPx])
   const clamp = useCallback((value) => clampTo(value, containerRef.current?.getBoundingClientRect().width), [clampTo])
   // The user's ratio is kept as chosen; what is shown never breaks the minimum widths
   // of the CURRENT width (so it recovers when the window grows again).
@@ -57,8 +56,9 @@ export function SplitPane({ start, end, defaultRatio = 0.5, minStartPx = 320, mi
     (clientX) => {
       const rect = containerRef.current?.getBoundingClientRect()
       if (!rect || rect.width <= 0) return
+      // Distance of the divider's centre from the inline start, as a share of the usable width.
       const fromStart = direction === 'rtl' ? rect.right - clientX : clientX - rect.left
-      setRatio(clamp(fromStart / rect.width))
+      setRatio(clamp(ratioFromDistance(fromStart, rect.width)))
     },
     [clamp, direction],
   )
@@ -95,7 +95,7 @@ export function SplitPane({ start, end, defaultRatio = 0.5, minStartPx = 320, mi
     <div
       ref={containerRef}
       className={`split-pane${isDragging ? ' is-dragging' : ''}`}
-      style={{ gridTemplateColumns: `minmax(${minStartPx}px, ${shownRatio}fr) ${DIVIDER_PX}px minmax(${minEndPx}px, ${1 - shownRatio}fr)` }}
+      style={{ gridTemplateColumns: `minmax(0, ${shownRatio}fr) ${DIVIDER_PX}px minmax(0, ${1 - shownRatio}fr)` }}
     >
       <div key="start" className="split-pane__panel">{start}</div>
       <div

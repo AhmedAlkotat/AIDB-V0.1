@@ -1,8 +1,9 @@
 # Task 2 / Phase 2 — review findings, investigation and stabilization
 
-Status date: 2026-11-24. Scope: the stabilization work authorised after the Phase 2
-review (findings L1–L7, risks P1–P8). Nothing here starts Phase 3, and nothing is
-committed: all Task 2 work is still uncommitted in the working tree.
+Status date: 2026-11-24. This document started as the Phase 2 stabilization record
+(findings L1–L7, risks P1–P8) and now also holds the **Task 2 closure** (sections 7–9).
+The Phase 1 + Phase 2 checkpoint is `efc8fff`; the Phase 3 work and the UAT fixes were committed
+afterwards (see section 9). **Task 2 is accepted** within its frontend-only scope.
 
 ## 0. How to read this document
 
@@ -272,3 +273,167 @@ Taken from the final runs of this session:
 - P2's recovery timer and P1's crash recovery are verified against simulated persistence only.
 - English text for the review UI does not exist, so no English wording is tested.
 - Large documents (1,000 pages) were not exercised in the browser.
+
+## 7. Task 2 closure (consolidated plan and final Phase 3)
+
+### 7.1 The consolidated plan
+
+| Task | Content |
+|------|---------|
+| 1 | Document upload and PDF page selection — completed. |
+| 2 | Document review and correction — see below. |
+| 3 | Backend, database, authentication and authorization. |
+| 4 | AI integration, document processing and archive management. |
+| 5 | Export, templates, dashboard and settings. |
+| 6 | Local AI model integration, offline deployment, final system testing. |
+
+Task 2 has three phases: **Phase 1** canonical model and state management (completed);
+**Phase 2** review UI, editor, autosave and stabilization (approved, sections 1–6);
+**Phase 3** the remaining frontend functionality and final integration (this section; the
+old phases 3–6 are merged into it).
+
+### 7.2 Requirement check (frontend-only scope)
+
+Everything in A–D was already implemented in Phase 1/2 and was left unchanged.
+
+| Area | Requirement | Status |
+|------|-------------|--------|
+| A | PDF and image viewer; side-by-side with the editor; resizable split; vertical layout when narrow; zoom, pan, reset, display-only rotation; selected-page mapping; one page rendered at a time | Complete (Phase 2 + L1, L2, L4) |
+| B | Headings, paragraphs (long handwritten text grows the box), tables (rows, columns, cells), key-value fields, unclassified elements; inline editing; insert, delete, reorder, type conversion; manual-content marking; Undo/Redo; Arabic-normalized current-page search; read-only synchronized JSON | Complete (Phase 1/2 + L3, L5, L6, L7) |
+| C | Navigation over selected pages, direct page number, progress, last visited page, explicit confirmation, invalidation after edits/Undo/Redo, autosave status, leave protection, failed pages and manual corrections, honest "temporary storage" labelling | Complete (Phase 2 + P1–P4) |
+| D | Processing status, failure handling, retry/reprocess, preserved original extraction, comparison, explicit accept/reject, pending-text safety, invalidation after accepting, history cleared on accepting | Complete as a mock (Phase 2 + P5, P8); no real OCR/AI |
+| E | Upload → Correction Queue → Review → Archive consistency; pending documents not in the archive; approval rules; approved documents read-only; admin-only new version; employees see own documents, administrators all | **Gaps found and closed in this phase** (7.3) |
+
+Already implemented before Phase 3 for E: approval needs all selected pages reviewed, saved
+changes and no running extraction; approved documents are read-only for everyone; only an
+administrator may *ask* for a new editable version (the request is refused: no backend).
+
+### 7.3 Missing functionality found and implemented in Phase 3
+
+1. **The Archive was a placeholder.** It now lists approved documents only, read-only, with
+   the same row component as the queue (`DocumentListItem`). Search/filter/management with
+   real data stays in Task 4.
+2. **The queue also listed approved documents.** The queue now holds pending documents only;
+   an approved document moves to the archive (the lists are derived from the store, so an
+   acknowledged approval moves it automatically).
+3. **No document owner existed, so "employees see their own, administrators see all" was not
+   implemented.** Records now carry `ownerId` (set by the upload page and the demo seeds);
+   `src/domain/document/access.js` holds the pure rules (`canViewDocument`,
+   `selectCorrectionQueue`, `selectArchive`); the queue, the archive and the review page use
+   them. Opening another employee's document by its address shows a "no permission" message.
+4. **Navigation.** The review page gets a "back" link: to the queue for a pending document,
+   to the archive for an approved one.
+5. **Simulated vs real.** The queue and the archive state plainly that the role and the
+   approval are a simulation in the interface and that nothing is enforced by a server.
+
+Files: `src/domain/document/access.js`, `src/hooks/useCurrentUser.js`,
+`src/hooks/useDocumentList.js`, `src/components/review/DocumentListItem.jsx` (new);
+`src/pages/CorrectionQueuePage.jsx`, `DocumentArchivePage.jsx`, `DocumentReviewPage.jsx`,
+`UploadDocumentPage.jsx`, `src/hooks/useReviewSession.js`, `src/services/documentStore.js`,
+`src/services/reviewDocuments.js`, `src/data/mock/reviewDemo.mock.js`, `src/routes/paths.js`,
+`src/i18n/translations.js`, `tests/access.test.js` (new), browser script
+`scripts/browser-checks/integration.check.mjs` (new).
+
+Decisions: no third demo document was added (the existing store test pins the seed at two),
+so with the demo data an employee and an administrator see the same two documents; the rule
+itself is covered by tests with other owners. A document without an owner is visible to
+administrators only.
+
+### 7.4 Remaining backend-dependent functionality (assigned to future tasks)
+
+| Item | Task |
+|------|------|
+| Real authentication; server-enforced authorization (employee/administrator visibility, review and approval permissions); removal of `VITE_DEMO_ROLE` from production builds (**P6**) | 3 |
+| Durable storage of documents, drafts, last visited page and approval; real approval and "new editable version"; re-test P1 (crash/reload) and P2 against the real storage; document lifecycle, retention and memory release (**P7**) | 3 |
+| Real OCR/AI extraction replacing `mockProcessingService` behind the same `extractPage` call; persisted attempt history; real failure modes | 4 |
+| Archive search, filtering and management with real data | 4 |
+| Export of reviewed documents; templates; dashboard with real figures; settings | 5 |
+| Local single-model AI, fully offline deployment (including bundling PDF.js font/CMap data for offline PDFs), final system testing | 6 |
+| English text for the review UI (the dictionary only has Arabic `review.*`, `queue.*`, `archive.*`) — proposed for Task 5 (settings/localization); not scheduled | 5 (proposed) |
+
+### 7.5 Deferred manual verification scenarios
+
+Manual testing was intentionally deferred. To run before the final system test (Task 6):
+real screen reader on the insert menu and the review bar; Firefox, Safari and touch devices;
+the drawer layouts below 1024px; the real clipboard permission prompt; a 1,000-page PDF in the
+browser; a long handwritten paragraph, a table with many columns and mixed RTL/LTR text by
+eye; an uploaded private document of realistic size; the administrator role
+(`VITE_DEMO_ROLE=orgAdmin` in `.env.local`) across queue, archive and review.
+
+### 7.6 Known limitations (Task 2 as delivered)
+
+- Everything is frontend-only and in the memory of one tab (section 1); nothing is durable.
+- Approval cannot succeed from the UI (no backend), so the only approved document is the
+  labelled demo record; "move from queue to archive on approval" is tested at store level only.
+- Visibility and roles are a simulation, not a security boundary.
+- The checks of this phase: targeted browser script (13 checks) plus unit/render tests; the
+  review workspace itself cannot be server-rendered in tests (it uses a client-only store hook).
+
+### 7.7 Final Task 2 status
+
+All Task 2 requirements that can be met without a backend or a real AI are implemented and
+verified; what remains is listed in 7.4 under its future task. Phase 3 verification:
+`npm test` 463 passing / 0 failing (447 before + 16 in `tests/access.test.js`), `npm run lint`
+clean, `npm run build` succeeds, `integration.check.mjs` 13/13. The earlier 197 browser checks
+were not repeated, as agreed.
+
+## 8. User acceptance testing (UAT-01 … UAT-05)
+
+Manual acceptance testing of Task 2 found five issues. Each was investigated for its root
+cause in a real Chrome before changing code; the failing behaviour was reproduced first (except
+where stated). All five checks are in `scripts/browser-checks/uat.check.mjs`.
+
+| ID | Issue | Root cause | Fix | Status |
+|----|-------|-----------|-----|--------|
+| UAT-01 | Image upload and review (JPG, JPEG, PNG) | **No defect found.** Upload rules, the queue, the review viewer, zoom/rotate/reset and "pending images are not in the archive" all work for `.png`, `.jpg`, `.jpeg` and `.JPG`. (The image rotation clipping had already been fixed as L4.) | none needed | Not reproduced; verified working |
+| UAT-02 | Arabic PDF letters separated, wrong spacing in the review viewer | The page is `dir="rtl"`; a canvas 2D context's `direction` defaults to `"inherit"`, so PDF.js drew every text run right-to-left. Proven by pixel comparison: all CSS variants gave identical broken output except `direction: ltr`, which equals a clean render. The upload preview uses the browser's native viewer, and the demo PDFs were English, so it was never seen. | `pdfDocumentService.renderPage` forces `canvas.dir`/`style.direction = 'ltr'` before drawing (so no caller can regress), plus `dir="ltr"` on the canvas and `direction: ltr` in the CSS. The PDF is never modified. | Fixed and verified |
+| UAT-03 | Flicker when rotating 90°/270° | A feedback loop. The page was fitted to the frame's `clientWidth`, which loses ~15px when a vertical scrollbar shows; the scrollbar shows or not depending on the page height, which depends on the fit width. When a page's height is close to the frame's (an A4 page turned 90° is the common case) it alternated between two sizes forever. Reproduced: at a panel width of 692–702px the canvas alternated `659×465` / `644×455`. | The fit width is taken from the frame's **border box** (observed with `box: 'border-box'`) minus borders and **one** scrollbar, always (`fitWidth.js`). Zoom, pan and reset are unchanged. | Fixed and verified |
+| UAT-04 | Panels do not use all the space, especially at the drag extremes | Two causes. (1) CSS Grid: the columns were `minmax(320px, Nfr) 14px minmax(360px, (1-N)fr)`; once a track is held at its minimum the remaining flex sum is below 1 and the other track gets only that fraction of the free space (215–253px left empty). (2) `.app-content` was capped at 1320px, so on wide screens the pane was 1256px wide. Both reproduced. | Columns are `minmax(0, ratio fr) 14px minmax(0, (1-ratio) fr)` (factors add up to 1, no pixel minimums); the minimum widths (320/360) are enforced by clamping the ratio (`splitMath.js`). The review page alone drops the 1320px cap (`.app-content--wide`). RTL, the <900px stacking and the container-width stacking are unchanged. | Fixed and verified |
+| UAT-05 | New table cells far too wide | `table { min-inline-size: max-content }` with automatic layout: a text input's intrinsic width is about 20 characters (`inline-size: 100%` does not count for intrinsic sizing), so every column demanded ~190px, plus `td { min-inline-size: 110px }`. | `table-layout: fixed`; columns share the width equally; the table's minimum width is `columns × 5.5rem + tools column` (via `--table-columns`), so it scrolls sideways only when there are many columns. Data model, JSON, editing, undo/redo untouched. | Fixed and verified |
+
+Files changed: `src/services/pdfDocumentService.js`, `src/components/review/OriginalViewer.jsx`,
+`SplitPane.jsx`, `editor/TableEditor.jsx`, `src/components/layout/AppLayout.jsx`,
+`src/styles/review.css`, `src/styles/layout.css`; new: `src/components/review/fitWidth.js`,
+`splitMath.js`, `tests/uatFixes.test.js`, `scripts/browser-checks/uat.check.mjs`,
+`scripts/browser-checks/make-arabic-pdfs.mjs`.
+
+Verification of this round: `npm test` 483 passing / 0 failing (463 + 20 in `tests/uatFixes.test.js`);
+`npm run lint` clean; `npm run build` succeeds; browser (real Chrome): the UAT script 184 checks / 0 failed
+(UAT-01 images in 4 file names; UAT-02 six real Arabic PDFs — Arial, Segoe UI, Sakkal Majalla, Arabic
+Typesetting, Times New Roman, and a landscape page — in Arabic and English interfaces, compared pixel for
+pixel with a clean render, plus a control showing the check can fail; UAT-03 four rotations × three window
+sizes for 4 seconds each and a divider sweep through the critical width; UAT-04 three window sizes × RTL/LTR ×
+sidebar open/closed, both drag extremes; UAT-05 tables in RTL/LTR at two sizes, including 12 columns, rows,
+undo/redo and JSON). The earlier layout, image-rotation, review, navigation and integration scripts were
+re-run after these changes: 0 failures.
+
+Limits of this verification: the Arabic PDFs were produced by Chrome (real shaped text with embedded fonts),
+not by Word or a scanner, and PDFs with non-embedded fonts are not covered (PDF.js standard-font/CMap data is
+still not bundled); the user's own PDF and screen were not available, so UAT-03 was reproduced with an A4 page
+at the geometry that triggers it, and the fix removes the dependency rather than tuning a size; Chrome only;
+scrollbar width 0 (overlay scrollbars, e.g. macOS) was reasoned about, not run.
+
+## 9. Final acceptance of Task 2
+
+**Manual verification.** The project owner completed the manual user-acceptance checks of
+UAT-01 (image upload and review), UAT-02 (Arabic PDF rendering), UAT-03 (rotation stability),
+UAT-04 (split-pane width) and UAT-05 (table cell width) and approved all five. This is the
+real-world confirmation of what section 8 verified in a browser with generated documents, and it
+covers the points section 8 listed as limits (the owner's own PDF documents and screen).
+
+**Acceptance.** Task 2 (document review and correction) is accepted **within its frontend-only
+scope**: the canonical document model and state (Phase 1), the review UI, editor, autosave and
+stabilization (Phase 2), and the final integration of upload, correction queue, review and archive
+(Phase 3), with the five UAT fixes.
+
+**Not part of this acceptance (unchanged, still open).**
+
+- Everything assigned to future tasks in section 7.4 — real authentication and server-enforced
+  permissions, durable storage, real approval and new editable versions, real OCR/AI, archive
+  search/management, export/templates/dashboard/settings, the local offline model — remains to be
+  done in Tasks 3–6, including the deferred risks **P6** (demo role in production builds) and **P7**
+  (memory accumulation in the temporary store).
+- The known limitations of section 7.6 and of the verification limits in section 8 still apply
+  (frontend-only temporary storage, simulated roles and approval, Arabic-only review texts, PDFs with
+  non-embedded fonts and bundled PDF.js font data not covered, Chrome as the only automated browser).
+- The deferred manual scenarios of section 7.5 are still to be run before the final system test (Task 6).

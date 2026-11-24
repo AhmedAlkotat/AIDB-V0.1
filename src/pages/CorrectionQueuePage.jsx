@@ -1,27 +1,25 @@
-import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { Alert } from '../components/common/Alert.jsx'
-import { DemoBadge } from '../components/common/DemoBadge.jsx'
 import { Icon } from '../components/common/Icon.jsx'
-import { seedDemoReviewDocuments } from '../data/mock/reviewDemo.mock.js'
+import { DocumentListItem } from '../components/review/DocumentListItem.jsx'
+import { selectCorrectionQueue } from '../domain/document/access.js'
+import { useCurrentUser } from '../hooks/useCurrentUser.js'
+import { useDocumentList } from '../hooks/useDocumentList.js'
 import { useTranslation } from '../hooks/useTranslation.js'
-import { documentStore } from '../services/documentStore.js'
-import { reviewPath, ROUTES } from '../routes/paths.js'
+import { ROUTES } from '../routes/paths.js'
 
-// Correction queue: the documents waiting for human review. Opening one goes to
-// its own review page (the editor is NOT embedded here).
+// Correction queue: the documents waiting for human review (approved documents move to
+// the archive). An employee sees their own documents, an administrator all of them
+// (simulated, see domain/document/access.js). Opening one goes to its own review page
+// (the editor is NOT embedded here).
 //
-// Until a backend exists the queue lists the documents held in this browser
-// tab's memory: the demonstration documents below (mock data) and any document
-// opened for review from the upload page. They are lost on reload.
+// Until a backend exists the queue lists the documents held in this browser tab's
+// memory: the demonstration documents (mock data) and any document opened for review
+// from the upload page. They are lost on reload.
 export default function CorrectionQueuePage() {
-  const { t, formatNumber } = useTranslation()
-  const [items, setItems] = useState(() => {
-    seedDemoReviewDocuments(documentStore)
-    return documentStore.list()
-  })
-
-  useEffect(() => documentStore.subscribe(() => setItems(documentStore.list())), [])
+  const { t } = useTranslation()
+  const user = useCurrentUser()
+  const items = selectCorrectionQueue(useDocumentList(), user)
 
   return (
     <div className="page">
@@ -38,7 +36,8 @@ export default function CorrectionQueuePage() {
       </section>
 
       <Alert tone="info" title={t('queue.temporaryTitle')}>
-        {t('queue.temporaryNote')}
+        <p>{t('queue.temporaryNote')}</p>
+        <p>{t('queue.simulatedNote')}</p>
       </Alert>
 
       {items.length === 0 ? (
@@ -51,30 +50,9 @@ export default function CorrectionQueuePage() {
         </section>
       ) : (
         <ul className="queue-list" aria-label={t('queue.listLabel')}>
-          {items.map((item) => {
-            const isApproved = item.approvalStatus === 'approved'
-            return (
-              <li key={item.id} className="card queue-item">
-                <div className="queue-item__main">
-                  <h3 className="queue-item__name" dir="auto">
-                    {item.name}
-                  </h3>
-                  <div className="queue-item__badges">
-                    {item.usesMockProcessing && <DemoBadge />}
-                    {isApproved && <span className="badge badge--success">{t('review.header.approvedBadge')}</span>}
-                  </div>
-                  <p className="queue-item__meta">
-                    <span>{t('queue.pages', { selected: formatNumber(item.selectedCount), total: formatNumber(item.totalPages) })}</span>
-                    <span>{t('queue.reviewed', { reviewed: formatNumber(item.reviewedCount), selected: formatNumber(item.selectedCount) })}</span>
-                  </p>
-                </div>
-                <Link className="button button--primary" to={reviewPath(item.id)}>
-                  <Icon name="fileText" />
-                  {t(isApproved ? 'queue.openReadOnly' : 'queue.open')}
-                </Link>
-              </li>
-            )
-          })}
+          {items.map((item) => (
+            <DocumentListItem key={item.id} item={item} />
+          ))}
         </ul>
       )}
     </div>

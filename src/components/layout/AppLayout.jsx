@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Outlet, useLocation } from 'react-router'
+import { matchPath, Outlet, useLocation } from 'react-router'
 import { useMediaQuery } from '../../hooks/useMediaQuery.js'
 import { useTranslation } from '../../hooks/useTranslation.js'
 import { findNavigationItem } from '../../routes/navigation.js'
+import { ROUTES } from '../../routes/paths.js'
 import { Header } from './Header.jsx'
 import { Sidebar } from './Sidebar.jsx'
 
@@ -30,6 +31,9 @@ export function AppLayout() {
   const isSidebarVisible = isDesktop ? !isDesktopCollapsed : isDrawerOpen
   const isDrawerActive = !isDesktop && isDrawerOpen
 
+  // The review workspace uses the whole width (two panels side by side); other pages keep
+  // the readable maximum width.
+  const isReviewPage = matchPath(ROUTES.reviewDocument, pathname) !== null
   const currentItem = findNavigationItem(pathname)
   const pageTitle = t(currentItem ? currentItem.labelKey : 'pages.notFound.title')
 
@@ -99,7 +103,7 @@ export function AppLayout() {
           menuButtonRef={menuButtonRef}
           headerRef={headerRef}
         />
-        <main id="main-content" className="app-content" tabIndex={-1}>
+        <main id="main-content" className={`app-content${isReviewPage ? ' app-content--wide' : ''}`} tabIndex={-1}>
           <Outlet />
         </main>
       </div>

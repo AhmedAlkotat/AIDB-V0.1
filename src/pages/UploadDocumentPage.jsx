@@ -7,6 +7,7 @@ import { DocumentPreview } from '../components/upload/DocumentPreview.jsx'
 import { FileInfoPanel } from '../components/upload/FileInfoPanel.jsx'
 import { PageSelectionPanel } from '../components/upload/PageSelectionPanel.jsx'
 import { MAX_FILES_PER_UPLOAD, MAX_UPLOAD_SIZE_BYTES, SUPPORTED_FORMAT_NAMES } from '../constants/upload.js'
+import { useCurrentUser } from '../hooks/useCurrentUser.js'
 import { useFileSizeFormatter } from '../hooks/useFileSizeFormatter.js'
 import { useObjectUrl } from '../hooks/useObjectUrl.js'
 import { PDF_PAGE_COUNT_STATUS, usePdfPageCount } from '../hooks/usePdfPageCount.js'
@@ -45,6 +46,7 @@ function getStartBlockReason(selected, pdf, selectedPages) {
 export default function UploadDocumentPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const currentUser = useCurrentUser()
   const formatFileSize = useFileSizeFormatter()
   const { createObjectUrl, revokeObjectUrl } = useObjectUrl()
   const inputRef = useRef(null)
@@ -179,7 +181,7 @@ export default function UploadDocumentPage() {
       mode: isPdf ? pageMode : PAGE_SELECTION_MODE.all,
       pages: selectedPages,
     })
-    navigate(reviewPath(createReviewDocumentFromRequest(documentStore, request)))
+    navigate(reviewPath(createReviewDocumentFromRequest(documentStore, request, { ownerId: currentUser.id })))
   }
 
   function getErrorMessage() {

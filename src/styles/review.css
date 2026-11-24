@@ -416,6 +416,8 @@
 }
 
 .original-viewer__page canvas {
+  /* Never inherit rtl: canvas text would be drawn right to left (see pdfDocumentService.js). */
+  direction: ltr;
   display: block;
   max-inline-size: none;
   background: #fff;
@@ -834,9 +836,19 @@ textarea.editor-input {
   overflow-x: auto;
 }
 
+/* Compact by default: the columns share the editor's width equally (fixed layout, so the
+   inputs' own intrinsic width, about 20 characters, no longer sets the column width). The table
+   only scrolls sideways when the columns would get narrower than --table-cell-min (many
+   columns): its minimum width is columns x that minimum plus the row-tools column. */
+.table-editor {
+  --table-cell-min: 5.5rem;
+  --table-tools-width: 4.75rem;
+}
+
 .table-editor table {
+  table-layout: fixed;
   inline-size: 100%;
-  min-inline-size: max-content;
+  min-inline-size: calc(var(--table-columns, 1) * var(--table-cell-min) + var(--table-tools-width));
   border-collapse: separate;
   border-spacing: 4px;
 }
@@ -859,18 +871,16 @@ textarea.editor-input {
 }
 
 .table-editor td {
-  min-inline-size: 110px;
   padding: 0;
   vertical-align: top;
 }
 
 .table-editor__row-tools {
-  min-inline-size: 0 !important;
   white-space: nowrap;
 }
 
 .table-editor__corner {
-  inline-size: 1%;
+  inline-size: var(--table-tools-width);
 }
 
 /* Insert points */

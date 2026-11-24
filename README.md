@@ -49,7 +49,8 @@ the body of `submitDocumentForProcessing`.
 ## Document review (Task 2)
 
 The **Correction Queue** (`/corrections`) lists the documents waiting for human
-review; opening one goes to its own page (`/corrections/review/:documentId`).
+review (approved ones move to the **Archive**, `/archive`, read-only; an employee sees their
+own documents and an administrator all of them: a simulation, not enforced by any server); opening one goes to its own page (`/corrections/review/:documentId`).
 The page shows the original PDF page (zoom, pan, display-only rotation; one
 page is rendered at a time, so large PDFs stay light) next to a structured
 editor (headings, paragraphs, tables, key/value fields and unclassified

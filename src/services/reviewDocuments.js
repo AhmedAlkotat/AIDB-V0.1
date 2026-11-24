@@ -6,13 +6,15 @@
 import { createDocumentFromRequest } from '../domain/document/document.js'
 import { serializeDocument } from '../domain/document/serialization.js'
 
-export function createReviewDocumentFromRequest(store, request) {
+// `ownerId` is the uploading user, so each user's documents can be listed separately.
+export function createReviewDocumentFromRequest(store, request, { ownerId = null } = {}) {
   const document = createDocumentFromRequest(request)
   return store.create({
     name: request.fileName,
     file: request.file,
     snapshot: serializeDocument(document, { includeOriginalExtraction: true }),
     kind: 'upload',
+    ownerId,
     usesMockProcessing: true,
   })
 }

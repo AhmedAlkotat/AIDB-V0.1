@@ -40,7 +40,7 @@ export function TableEditor({ element, ctx, matches }) {
   return (
     <div className="table-editor">
       <div className="table-editor__scroll">
-        <table>
+        <table style={{ '--table-columns': columnCount }}>
           <caption className="visually-hidden">{t('review.table.caption', { rows: formatNumber(rows.length), columns: formatNumber(columnCount) })}</caption>
           <thead>
             <tr>

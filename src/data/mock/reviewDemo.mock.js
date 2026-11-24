@@ -13,6 +13,7 @@ import { serializeDocument } from '../../domain/document/serialization.js'
 import { ACTION, createEditorReducer, createInitialEditorState } from '../../state/documentSession/documentReducer.js'
 import { buildMockElements } from '../../services/mockProcessingService.js'
 import { createDemoPdfFile } from './demoPdf.js'
+import { DEMO_USER } from './demoUser.mock.js'
 
 export const DEMO_REVIEW_IDS = Object.freeze({
   toReview: 'demo-review-8-pages',
@@ -60,6 +61,7 @@ export function seedDemoReviewDocuments(store) {
       file,
       snapshot,
       kind: 'demo',
+      ownerId: DEMO_USER.id,
     })
   }
   if (!store.has(DEMO_REVIEW_IDS.approved)) {
@@ -70,6 +72,7 @@ export function seedDemoReviewDocuments(store) {
       file,
       snapshot,
       kind: 'demo',
+      ownerId: DEMO_USER.id,
       approval: { status: APPROVAL_STATUS.approved },
     })
   }

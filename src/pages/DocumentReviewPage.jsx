@@ -20,7 +20,7 @@ import { findPage } from '../domain/document/document.js'
 import { useNavigationGuard } from '../hooks/useNavigationGuard.js'
 import { useReviewSession, useSessionView } from '../hooks/useReviewSession.js'
 import { useTranslation } from '../hooks/useTranslation.js'
-import { ROUTES } from '../routes/paths.js'
+import { backFromReviewPath, ROUTES } from '../routes/paths.js'
 import { ACTION } from '../state/documentSession/documentReducer.js'
 import { selectRedoDepth, selectUndoDepth } from '../state/documentSession/documentSelectors.js'
 
@@ -71,6 +71,13 @@ function ReviewWorkspace({ session, record }) {
         isTemporaryStorage={view.isTemporaryStorage}
         onRetrySave={() => session.retrySave()}
       />
+
+      <p>
+        <Link className="button button--secondary button--sm" to={backFromReviewPath(isApproved)}>
+          <Icon name="chevronLeft" size={16} className="icon--flip-rtl" />
+          {t(isApproved ? 'review.backToArchive' : 'review.back')}
+        </Link>
+      </p>
 
       <PageNavigator pages={document.pages} selectedPages={document.selectedPages} currentPage={currentPage} onGoTo={goTo} />
 
@@ -178,6 +185,11 @@ function LoadedReview({ documentId }) {
         {result.status === 'missing' && (
           <Alert tone="warning" title={t('review.missing.title')}>
             {t('review.missing.text')}
+          </Alert>
+        )}
+        {result.status === 'forbidden' && (
+          <Alert tone="warning" title={t('review.forbidden.title')}>
+            {t('review.forbidden.text')}
           </Alert>
         )}
         {result.status === 'error' && (
