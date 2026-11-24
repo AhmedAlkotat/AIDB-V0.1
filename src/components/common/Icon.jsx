@@ -192,6 +192,77 @@ const ICONS = {
       <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
     </>
   ),
+  chevronRight: <path d="M9 6l6 6-6 6" />,
+  chevronLeft: <path d="M15 6l-6 6 6 6" />,
+  arrowUp: (
+    <>
+      <path d="M12 19V5" />
+      <path d="M5 12l7-7 7 7" />
+    </>
+  ),
+  arrowDown: (
+    <>
+      <path d="M12 5v14" />
+      <path d="M19 12l-7 7-7-7" />
+    </>
+  ),
+  undo: (
+    <>
+      <path d="M9 14L4 9l5-5" />
+      <path d="M4 9h10a6 6 0 0 1 0 12h-3" />
+    </>
+  ),
+  redo: (
+    <>
+      <path d="M15 14l5-5-5-5" />
+      <path d="M20 9H10a6 6 0 0 0 0 12h3" />
+    </>
+  ),
+  plus: (
+    <>
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </>
+  ),
+  check: <path d="M5 12.5l4.5 4.5L19 7" />,
+  grip: (
+    <>
+      <circle cx="9" cy="6" r="1.2" />
+      <circle cx="15" cy="6" r="1.2" />
+      <circle cx="9" cy="12" r="1.2" />
+      <circle cx="15" cy="12" r="1.2" />
+      <circle cx="9" cy="18" r="1.2" />
+      <circle cx="15" cy="18" r="1.2" />
+    </>
+  ),
+  rotate: (
+    <>
+      <path d="M21 12a9 9 0 1 1-3-6.7" />
+      <path d="M21 4v5h-5" />
+    </>
+  ),
+  copy: (
+    <>
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path d="M5 15V6a2 2 0 0 1 2-2h9" />
+    </>
+  ),
+  code: (
+    <>
+      <path d="M8 7l-5 5 5 5" />
+      <path d="M16 7l5 5-5 5" />
+    </>
+  ),
+  list: (
+    <>
+      <path d="M8 6h13" />
+      <path d="M8 12h13" />
+      <path d="M8 18h13" />
+      <path d="M3 6h.01" />
+      <path d="M3 12h.01" />
+      <path d="M3 18h.01" />
+    </>
+  ),
 }
 
 export function Icon({ name, size = 20, className = '', ...rest }) {

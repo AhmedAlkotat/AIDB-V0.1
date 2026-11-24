@@ -17,6 +17,11 @@ export function getNavigationGroup(group) {
   return navigationItems.filter((item) => item.group === group)
 }
 
+// The item for a URL. Pages below a section (e.g. /corrections/review/:id) belong
+// to that section, so they keep its title and its highlighted sidebar entry.
 export function findNavigationItem(pathname) {
-  return navigationItems.find((item) => matchPath({ path: item.path, end: true }, pathname))
+  return (
+    navigationItems.find((item) => matchPath({ path: item.path, end: true }, pathname)) ??
+    navigationItems.find((item) => item.path !== ROUTES.dashboard && matchPath({ path: `${item.path}/*` }, pathname))
+  )
 }

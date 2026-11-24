@@ -38,6 +38,8 @@
   /* Layout */
   --sidebar-width: 272px;
   --header-height: 72px;
+  /* The REAL height of the sticky header; AppLayout keeps it up to date. */
+  --app-header-height: var(--header-height);
   --content-max-width: 1320px;
 
   --font-sans: 'Cairo', Tahoma, Arial, sans-serif;

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router'
 import { Alert } from '../components/common/Alert.jsx'
 import { Icon } from '../components/common/Icon.jsx'
 import { DocumentDropZone } from '../components/upload/DocumentDropZone.jsx'
@@ -10,6 +11,9 @@ import { useFileSizeFormatter } from '../hooks/useFileSizeFormatter.js'
 import { useObjectUrl } from '../hooks/useObjectUrl.js'
 import { PDF_PAGE_COUNT_STATUS, usePdfPageCount } from '../hooks/usePdfPageCount.js'
 import { useTranslation } from '../hooks/useTranslation.js'
+import { documentStore } from '../services/documentStore.js'
+import { reviewPath } from '../routes/paths.js'
+import { createReviewDocumentFromRequest } from '../services/reviewDocuments.js'
 import {
   createProcessingRequest,
   ProcessingNotConnectedError,
@@ -40,6 +44,7 @@ function getStartBlockReason(selected, pdf, selectedPages) {
 // mirrored in English (LTR). Tablet and mobile: single column.
 export default function UploadDocumentPage() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const formatFileSize = useFileSizeFormatter()
   const { createObjectUrl, revokeObjectUrl } = useObjectUrl()
   const inputRef = useRef(null)
@@ -162,6 +167,21 @@ export default function UploadDocumentPage() {
     }
   }
 
+  // Opens the selected document in the review page with MOCK processing (there is
+  // no real AI yet). The request is the same one "Start processing" builds; the
+  // document stays in this browser tab's memory only.
+  function handleOpenMockReview() {
+    if (!canStart) return
+    const request = createProcessingRequest({
+      file: selected.file,
+      documentKind: selected.type.kind,
+      totalPages,
+      mode: isPdf ? pageMode : PAGE_SELECTION_MODE.all,
+      pages: selectedPages,
+    })
+    navigate(reviewPath(createReviewDocumentFromRequest(documentStore, request)))
+  }
+
   function getErrorMessage() {
     const formats = SUPPORTED_FORMAT_NAMES.join(t('upload.listSeparator'))
     return t(`upload.errors.${error.code}`, {
@@ -199,6 +219,15 @@ export default function UploadDocumentPage() {
         <p id="start-processing-hint" className="upload-actions__hint">
           {startBlockReason === 'noFile' ? t('upload.actions.startHint') : t(`upload.actions.blocked.${startBlockReason}`)}
         </p>
+      )}
+      {selected && (
+        <>
+          <button type="button" className="button button--secondary upload-actions__start" disabled={!canStart} onClick={handleOpenMockReview}>
+            <Icon name="fileText" />
+            {t('upload.actions.mockReview')}
+          </button>
+          <p className="upload-actions__hint">{t('upload.actions.mockReviewHint')}</p>
+        </>
       )}
 
       {processingNotice === 'notConnected' && (

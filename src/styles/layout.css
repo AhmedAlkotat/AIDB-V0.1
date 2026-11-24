@@ -3,6 +3,11 @@
    the sidebar is the first flex item, so it sits on the right in RTL and on
    the left in LTR. */
 
+/* Anchors, focus and scrollIntoView never end up behind the sticky header. */
+html {
+  scroll-padding-block-start: calc(var(--app-header-height) + 16px);
+}
+
 .app-shell {
   display: flex;
   min-block-size: 100vh;

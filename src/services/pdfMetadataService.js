@@ -91,7 +91,8 @@ export async function readPdfPageCountWith(pdfjs, file, { signal } = {}) {
 
 let pdfjsPromise = null
 
-function loadPdfjs() {
+// Shared with the review page's PDF page viewer (one lazy load, one worker setup).
+export function loadPdfjs() {
   pdfjsPromise ??= Promise.all([
     import('pdfjs-dist/legacy/build/pdf.mjs'),
     import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'),

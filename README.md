@@ -46,6 +46,77 @@ still **not connected** to any backend or AI, so nothing is sent or processed
 and no result is ever fabricated. The later integration only needs to replace
 the body of `submitDocumentForProcessing`.
 
+## Document review (Task 2)
+
+The **Correction Queue** (`/corrections`) lists the documents waiting for human
+review; opening one goes to its own page (`/corrections/review/:documentId`).
+The page shows the original PDF page (zoom, pan, display-only rotation; one
+page is rendered at a time, so large PDFs stay light) next to a structured
+editor (headings, paragraphs, tables, key/value fields and unclassified
+content) with a resizable split, page navigation over the *selected* pages
+only, an explicit "تمت مراجعة الصفحة" action, undo/redo, search in the current
+page, a read-only JSON preview, autosave, a mock re-extraction with a
+comparison step, and an approval checklist.
+
+Architecture (nothing competes with the Phase 1 model):
+
+```text
+src/domain/document/   canonical model, validation, operations, JSON, review
+                       rules; approval.js, pageStatus.js, search.js,
+                       pageNavigation.js, saveStatus.js
+src/state/documentSession/
+  documentReducer.js   Phase 1 reducer: the ONLY thing that changes the document
+  reviewSession.js     framework-independent session: reducer + autosave +
+                       mock processing + comparison + approval rules
+src/services/          autosaveController, documentStore (temporary, in memory),
+                       mockProcessingService, approvalService (not connected),
+                       pdfDocumentService (one page at a time)
+src/components/review/ the review UI;  src/pages/DocumentReviewPage.jsx
+```
+
+What is mock or temporary (and labelled as such in the UI):
+
+- **Extraction results are validated** before they are applied or kept for
+  comparison (a list of canonical elements with unique IDs that do not clash
+  with the rest of the document); an invalid result marks the page failed (or
+  leaves existing content untouched) instead of being applied.
+- **No real AI and no backend.** Extraction results are made-up placeholder
+  content marked "[تجريبي]"; pages 4, 8, ... fail their first mock attempt so
+  the failure/retry flow can be tried.
+- **Storage is this browser tab's memory** (`documentStore`): it is *not*
+  durable, nothing is sent to a server, and everything is lost on reload. The
+  autosave states ("تغييرات بانتظار الحفظ" / "جارٍ الحفظ" / "تم حفظ جميع
+  التعديلات" / "فشل الحفظ") only reflect what that store acknowledged. Autosave
+  stores only the pages that changed (`savePages`), never the whole document, so
+  an edit stays cheap even in a 1,000-page document. A later phase replaces the
+  store behind the same interface.
+- **Approval is not connected** (`approvalService`): the checklist is real but
+  nothing is ever approved, so no document can become approved from the UI.
+  While an approval request is pending the document is frozen, and once a
+  service acknowledges an approval it is written to the store (`setApprovalStatus`).
+  Approved documents (a demo record) are read-only for everyone; only the admin
+  may ask for a new editable version, which also needs the backend.
+- Demo documents (`src/data/mock/reviewDemo.mock.js`) are created in the queue,
+  with a generated real PDF (`demoPdf.js`). Development builds also show a small
+  "demo tools" panel to simulate a failing storage or extraction.
+- To try the admin-only action set `VITE_DEMO_ROLE=orgAdmin` (e.g. in
+  `.env.local`).
+- Leaving the page is guarded with `useBlocker`, which needs a data router, so
+  `main.jsx` uses `createBrowserRouter` + `RouterProvider` (all routes are still
+  declared in `AppRoutes`).
+- PDF pages without embedded fonts use the browser's substitute fonts; PDF.js
+  font/CMap data is not bundled yet (scanned documents are unaffected).
+
+Browser checks (real Chrome/Edge, no extra dependency): start `npm run dev -- --port 5199`
+in one terminal and run `npm run check:browser` in another. They cover the layout (sticky
+viewer, split pane around 1024px, RTL/LTR), image rotation, the review interactions and the
+navigation guard; see `scripts/browser-checks/`. Findings, fixes and the remaining gaps of the
+Phase 2 stabilization are in `docs/task-2-phase-2-review.md`.
+
+Tests: `npm test` runs the Node test runner over `tests/` (domain, session,
+autosave and the UI render tests, which load the real `.jsx` components through
+Vite's SSR loader; no extra dependency).
+
 ## Structure
 
 ```text

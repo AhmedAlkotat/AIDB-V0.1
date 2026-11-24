@@ -25,6 +25,7 @@ export function AppLayout() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(false)
   const menuButtonRef = useRef(null)
+  const headerRef = useRef(null)
 
   const isSidebarVisible = isDesktop ? !isDesktopCollapsed : isDrawerOpen
   const isDrawerActive = !isDesktop && isDrawerOpen
@@ -48,6 +49,22 @@ export function AppLayout() {
     if (isDesktop) setIsDesktopCollapsed((collapsed) => !collapsed)
     else setIsDrawerOpen((open) => !open)
   }, [isDesktop])
+
+  // Publishes the REAL height of the sticky header (it grows when its content wraps)
+  // as --app-header-height, so sticky panels and scroll offsets sit right below it.
+  useEffect(() => {
+    const header = headerRef.current
+    if (!header) return undefined
+    const root = document.documentElement
+    const publish = () => root.style.setProperty('--app-header-height', `${Math.ceil(header.getBoundingClientRect().height)}px`)
+    publish()
+    const observer = new ResizeObserver(publish)
+    observer.observe(header)
+    return () => {
+      observer.disconnect()
+      root.style.removeProperty('--app-header-height')
+    }
+  }, [])
 
   useEffect(() => {
     document.title = `${pageTitle} | ${t('app.name')}`
@@ -80,6 +97,7 @@ export function AppLayout() {
           isSidebarOpen={isSidebarVisible}
           onMenuToggle={toggleSidebar}
           menuButtonRef={menuButtonRef}
+          headerRef={headerRef}
         />
         <main id="main-content" className="app-content" tabIndex={-1}>
           <Outlet />

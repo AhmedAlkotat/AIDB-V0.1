@@ -3,11 +3,11 @@ import { Icon } from '../common/Icon.jsx'
 import { LanguageSwitcher } from './LanguageSwitcher.jsx'
 import { UserBadge } from './UserBadge.jsx'
 
-export function Header({ title, sidebarId, isSidebarOpen, onMenuToggle, menuButtonRef }) {
+export function Header({ title, sidebarId, isSidebarOpen, onMenuToggle, menuButtonRef, headerRef }) {
   const { t } = useTranslation()
 
   return (
-    <header className="app-header">
+    <header ref={headerRef} className="app-header">
       <div className="app-header__start">
         <button
           ref={menuButtonRef}
