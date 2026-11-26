@@ -1,27 +1,39 @@
+import { useState } from 'react'
 import { Link } from 'react-router'
 import { Alert } from '../components/common/Alert.jsx'
 import { Icon } from '../components/common/Icon.jsx'
 import { DocumentListItem } from '../components/review/DocumentListItem.jsx'
-import { selectCorrectionQueue } from '../domain/document/access.js'
+import { selectCorrectionQueue, stateOf } from '../domain/document/access.js'
+import { DOCUMENT_STATE } from '../domain/document/lifecycle.js'
 import { useCurrentUser } from '../hooks/useCurrentUser.js'
 import { useDocumentDeletion } from '../hooks/useDocumentDeletion.jsx'
 import { useDocumentList } from '../hooks/useDocumentList.js'
+import { useDocumentRetry } from '../hooks/useDocumentRetry.jsx'
+import { getDocumentQueuePosition, useProcessingQueue } from '../hooks/useProcessingQueue.js'
 import { useTranslation } from '../hooks/useTranslation.js'
 import { ROUTES } from '../routes/paths.js'
 
-// Correction queue: the documents waiting for human review (approved documents move to
-// the archive). An employee sees their own documents, an administrator all of them
-// (simulated, see domain/document/access.js). Opening one goes to its own review page
-// (the editor is NOT embedded here).
+const STATE_FILTERS = [DOCUMENT_STATE.pending, DOCUMENT_STATE.processing, DOCUMENT_STATE.readyForReview, DOCUMENT_STATE.failed, DOCUMENT_STATE.manualEditing]
+
+// Correction queue: the documents still in work, in every state but Approved (Pending, Processing, Ready for
+// Review, Failed, Manual Editing, decision 12). An employee sees their own documents, an administrator all of
+// them (simulated, see domain/document/access.js). Documents wait here in the central FIFO queue (decisions
+// 22 and 23) and are processed in the background: leaving this page never stops that, and a notification
+// (never an automatic redirect) says when a document is ready (decisions 2 and 3). Opening one goes to its
+// own review page (the editor is NOT embedded here). Approved documents are in the archive.
 //
-// Until a backend exists the queue lists the documents held in this browser tab's
-// memory: the demonstration documents (mock data) and any document opened for review
-// from the upload page. They are lost on reload.
+// Until a backend exists the queue lists the documents held in this browser tab's memory (documentStore).
 export default function CorrectionQueuePage() {
-  const { t } = useTranslation()
+  const { t, formatNumber } = useTranslation()
   const user = useCurrentUser()
-  const items = selectCorrectionQueue(useDocumentList(), user)
+  const all = selectCorrectionQueue(useDocumentList(), user)
   const deletion = useDocumentDeletion()
+  const retry = useDocumentRetry()
+  const queue = useProcessingQueue()
+  const [stateFilter, setStateFilter] = useState('all')
+
+  const items = stateFilter === 'all' ? all : all.filter((item) => stateOf(item) === stateFilter)
+  const counts = Object.fromEntries(STATE_FILTERS.map((state) => [state, all.filter((item) => stateOf(item) === state).length]))
 
   return (
     <div className="page">
@@ -38,15 +50,38 @@ export default function CorrectionQueuePage() {
       </section>
 
       {deletion.feedback}
+      {retry.feedback}
 
       <Alert tone="info" title={t('queue.temporaryTitle')}>
         <p>{t('queue.temporaryNote')}</p>
         <p>{t('queue.simulatedNote')}</p>
       </Alert>
 
+      {queue.blocked === 'storageFull' && (
+        <Alert tone="warning" title={t('queue.pausedTitle')}>
+          {t('queue.pausedText')}
+        </Alert>
+      )}
+
+      {all.length > 0 && (
+        <div className="queue-filter">
+          <label className="form-field__label" htmlFor="queue-state-filter">
+            {t('queue.filter.label')}
+          </label>
+          <select id="queue-state-filter" className="form-field__input" value={stateFilter} onChange={(event) => setStateFilter(event.target.value)}>
+            <option value="all">{t('queue.filter.all', { count: formatNumber(all.length) })}</option>
+            {STATE_FILTERS.map((state) => (
+              <option key={state} value={state}>
+                {t(`documents.state.${state}`)} ({formatNumber(counts[state])})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {items.length === 0 ? (
         <section className="card queue-empty">
-          <p>{t('queue.empty')}</p>
+          <p>{all.length === 0 ? t('queue.empty') : t('queue.emptyFiltered')}</p>
           <Link className="button button--primary" to={ROUTES.upload}>
             <Icon name="upload" />
             {t('dashboard.uploadCta')}
@@ -55,7 +90,14 @@ export default function CorrectionQueuePage() {
       ) : (
         <ul className="queue-list" aria-label={t('queue.listLabel')}>
           {items.map((item) => (
-            <DocumentListItem key={item.id} item={item} onDelete={deletion.onDelete} />
+            <DocumentListItem
+              key={item.id}
+              item={item}
+              queuePosition={getDocumentQueuePosition(queue.jobs, item.id)}
+              onDelete={deletion.onDelete}
+              onRetry={retry.onRetry}
+              isRetrying={retry.busyId === item.id}
+            />
           ))}
         </ul>
       )}

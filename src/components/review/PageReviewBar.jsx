@@ -13,7 +13,7 @@ import { PageStatusBadge, PageStatusDetails } from './PageStatusBadges.jsx'
 // session does it), then validates the result: the confirmation always covers the
 // content on screen, and a click is never wasted on a button that is about to
 // become enabled. A page shown as "reviewed" is not trusted while text is pending.
-export function PageReviewBar({ page, isApproved, isApprovalPending = false, hasPendingEdits = false, onConfirm }) {
+export function PageReviewBar({ page, isApproved, isApprovalPending = false, isLockedOut = false, hasPendingEdits = false, onConfirm }) {
   const { t, language } = useTranslation()
   const awaitsCommit = hasPendingEdits && page.processing.status !== 'processing'
   const blocker = isApproved || awaitsCommit ? null : getReviewConfirmationBlocker(page)
@@ -28,6 +28,7 @@ export function PageReviewBar({ page, isApproved, isApprovalPending = false, has
   let reason = null
   if (isApproved) reason = t('review.reviewBar.approved')
   else if (isApprovalPending) reason = t('review.reviewBar.approvalPending')
+  else if (isLockedOut) reason = t('review.reviewBar.lock')
   else if (blocker) reason = t(`review.reviewBar.blocked.${blocker}`)
 
   return (
@@ -61,7 +62,7 @@ export function PageReviewBar({ page, isApproved, isApprovalPending = false, has
           <button
             type="button"
             className="button button--primary"
-            disabled={isApproved || isApprovalPending || blocker !== null}
+            disabled={isApproved || isApprovalPending || isLockedOut || blocker !== null}
             aria-describedby={reason ? 'review-bar-reason' : undefined}
             onClick={onConfirm}
           >

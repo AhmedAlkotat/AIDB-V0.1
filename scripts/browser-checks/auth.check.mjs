@@ -131,22 +131,24 @@ await runChecks('Authentication and role-based access (Batch A)', async ({ brows
   // follow VITE_DEMO_ROLE): only the Admin may ask for a new editable version.
   await page.goto(`${BASE_URL}/corrections/review/demo-approved-3-pages`)
   await page.waitFor(`document.querySelector('.approval-panel__version')`)
-  check('the Admin sees the "new editable version" action on an approved document', await exists(page, '.approval-panel__version button'))
+  check('the Admin sees the "new editable version" action on an approved document', await exists(page, '.approval-panel__version [data-action="new-version"]'))
   await signOut(page)
   await signIn(page, 'employee', 'employee-dev')
   await page.goto(`${BASE_URL}/corrections/review/demo-approved-3-pages`)
   await page.waitFor(`document.querySelector('.approval-panel__version')`)
-  check('the employee sees only the Admin-only note on the same document', !(await exists(page, '.approval-panel__version button')) && (await text(page, '.approval-panel__version')).includes('مدير المؤسسة'))
+  check('the employee sees only the Admin-only note on the same document (and no new-version action)', !(await exists(page, '.approval-panel__version [data-action="new-version"]')) && (await text(page, '.approval-panel__version')).includes('مدير المؤسسة'))
   await signOut(page)
 
   // ---------------------------------------------------------------- unsaved work on logout
   const work = await browser.newPage({ width: 1280, height: 900, session: 'employee' })
   await work.goto(REVIEW_URL)
   await work.waitFor(`document.querySelectorAll('.element-card').length >= 1`, { timeout: 15000 })
-  await work.click('.processing .button--secondary') // re-extract: now running
+  await work.waitFor(`document.querySelector('[data-lock=held]')`, { timeout: 5000 })
+  await work.click('.processing .button--secondary') // re-extract; its result then waits for a decision
+  await work.waitFor(`document.querySelector('.comparison')`, { timeout: 10000 })
   await work.click('a.sidebar__logout')
   await work.waitFor(`document.querySelector('dialog[open]')`)
-  check('logging out while a page is being processed asks first (same guard as navigation)', (await path(work)).includes('/review/'))
+  check('logging out while a result waits for a decision asks first (same guard as navigation; a running extraction no longer does, decision 2)', (await path(work)).includes('/review/'))
   check('the user is still signed in while the question is open', await exists(work, '.user-badge'))
   await work.eval(`document.querySelector('dialog[open] .button--secondary').click()`) // stay
   await sleep(400)

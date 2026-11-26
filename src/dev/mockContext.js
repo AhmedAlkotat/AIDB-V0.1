@@ -36,6 +36,8 @@ export function createMockContext({
     return account && account.status === EMPLOYEE_STATUS.active ? { id: account.id, displayName: account.displayName, role: account.role } : null
   }
 
+  const notifyListeners = new Set()
+
   const context = {
     storage,
     accountStore,
@@ -81,12 +83,17 @@ export function createMockContext({
       })
     },
 
-    // Adds a notification (readBy starts empty).
+    // Adds a notification (readBy starts empty) and tells whoever listens (the bell refreshes at once).
     notify(notification) {
       system.update((draft) => {
         draft.seq += 1
         draft.notifications.push({ id: `ntf-${draft.seq}`, createdAt: now().toISOString(), readBy: {}, params: {}, ...notification })
       })
+      for (const listener of notifyListeners) listener()
+    },
+    onNotify(listener) {
+      notifyListeners.add(listener)
+      return () => notifyListeners.delete(listener)
     },
   }
   return context

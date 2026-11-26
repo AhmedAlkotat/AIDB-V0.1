@@ -18,6 +18,7 @@ import { Icon } from '../common/Icon.jsx'
 // - rangeInput / onRangeInputChange: the typed text
 // - selection: result of parsePageSelection (null in "all" mode)
 // - selectedPages: the pages that will be processed, or null if invalid
+// - maxSelectedPages: the Admin's limit on the selected pages (decision 48), or null while unknown
 export function PageSelectionPanel({
   pdf,
   mode,
@@ -26,6 +27,7 @@ export function PageSelectionPanel({
   onRangeInputChange,
   selection,
   selectedPages,
+  maxSelectedPages = null,
 }) {
   const { t, language } = useTranslation()
   const baseId = useId()
@@ -159,6 +161,15 @@ export function PageSelectionPanel({
       <p className="page-selection__summary" aria-live="polite">
         {summary}
       </p>
+      {maxSelectedPages !== null && (
+        <p className="page-selection__hint">{t('upload.pages.limitHint', { max: number(maxSelectedPages) })}</p>
+      )}
+      {maxSelectedPages !== null && selectedPages && selectedPages.length > maxSelectedPages && (
+        <p className="page-selection__error" role="alert">
+          <Icon name="alertCircle" size={16} />
+          {t('upload.pages.limitExceeded', { selected: number(selectedPages.length), max: number(maxSelectedPages) })}
+        </p>
+      )}
     </section>
   )
 }

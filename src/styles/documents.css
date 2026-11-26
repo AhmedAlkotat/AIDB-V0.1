@@ -1,0 +1,226 @@
+/* Batch D: document management (lifecycle states, queue and archive filters, result tabs, edit lock, versions,
+   attempts, export, templates). Reuses the card, badge, form and dialog styles of the other screens. */
+
+/* ---- Queue and archive ------------------------------------------------------------------- */
+.queue-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.queue-filter .form-field__input {
+  inline-size: auto;
+  min-inline-size: 220px;
+}
+
+.archive-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px 16px;
+  padding: 16px 20px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.archive-filters .form-field {
+  flex: 1 1 150px;
+}
+
+.archive-filters__search {
+  flex: 2 1 240px !important;
+}
+
+.archive-filters__footer {
+  display: flex;
+  flex: 1 1 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.archive-filters__summary {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.state-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.state-counts li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ---- Review: result tabs ------------------------------------------------------------------ */
+.result-tabs__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-block: 12px 0;
+  border-block-end: 2px solid var(--color-border);
+}
+
+.result-tabs__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 0;
+  border-block-end: 3px solid transparent;
+  margin-block-end: -2px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.result-tabs__tab:hover {
+  color: var(--color-navy);
+}
+
+.result-tabs__tab.is-active {
+  color: var(--color-teal-800);
+  border-block-end-color: var(--color-teal);
+}
+
+.result-tabs__count {
+  min-inline-size: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--color-navy-50);
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.result-tabs__panel {
+  padding-block-start: 12px;
+}
+
+.result-tabs__hint {
+  margin: 0 0 10px;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.json-preview--embedded {
+  margin: 0;
+}
+
+/* ---- Review: lock, save, status --------------------------------------------------------- */
+.lock-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.save-status__draft {
+  align-self: flex-start;
+}
+
+.processing-status {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ---- Versions, attempts, export, templates ---------------------------------------------- */
+.version-history,
+.attempt-history {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+}
+
+.attempt-history > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: var(--color-navy);
+  cursor: pointer;
+}
+
+.version-history__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.version-history__list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.version-history__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.version-history__meta {
+  flex: 1 1 240px;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.version-viewer {
+  inline-size: min(900px, 94vw);
+}
+
+.export-dialog__formats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.export-dialog__name {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.template-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.template-list__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}

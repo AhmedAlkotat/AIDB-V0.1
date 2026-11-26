@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { rotateLocation, toPercentStyle } from '../../domain/document/location.js'
 import { useTranslation } from '../../hooks/useTranslation.js'
 import { openPdfDocument } from '../../services/pdfDocumentService.js'
 import { Icon } from '../common/Icon.jsx'
@@ -75,7 +76,11 @@ function useImageFile(imageRef, file, enabled) {
 // The ORIGINAL page next to the editor. Shows one page at a time (a PDF is parsed
 // once and only the visible page is rendered), with zoom, pan (drag or
 // scroll), reset and a display-only rotation. Nothing here changes the file.
-export function OriginalViewer({ file, pageNumber }) {
+//
+// `highlight` ({ location, reveal }, optional, decision 50) marks the area of one element on the page when the
+// model reported its coordinates (relative 0..1 of the unrotated page); the mark follows the display rotation.
+// Without coordinates nothing is drawn and everything else works the same.
+export function OriginalViewer({ file, pageNumber, highlight = null }) {
   const { t } = useTranslation()
   const isPdf = Boolean(file) && (file.type === 'application/pdf' || /\.pdf$/i.test(file.name))
   const pdf = usePdfDocument(file, isPdf)
@@ -84,6 +89,7 @@ export function OriginalViewer({ file, pageNumber }) {
   const imageRef = useRef(null)
   useImageFile(imageRef, file, Boolean(file) && !isPdf)
   const canvasRef = useRef(null)
+  const highlightRef = useRef(null)
   const dragRef = useRef(null)
   const [zoom, setZoom] = useState(1)
   const [rotation, setRotation] = useState(0)
@@ -166,6 +172,15 @@ export function OriginalViewer({ file, pageNumber }) {
     }
   }, [pdf.doc, pageNumber, zoom, rotation, containerWidth])
 
+  // "Show on the page" scrolls the marked area into view.
+  useEffect(() => {
+    if (highlight?.reveal) highlightRef.current?.scrollIntoView?.({ block: 'center', inline: 'center' })
+  }, [highlight])
+
+  const overlay = highlight?.location && (
+    <div ref={highlightRef} className="original-viewer__highlight" data-testid="element-highlight" aria-hidden="true" style={toPercentStyle(rotateLocation(highlight.location, rotation))} />
+  )
+
   function handlePointerDown(event) {
     const container = containerRef.current
     if (event.button !== 0 || !container) return
@@ -206,7 +221,10 @@ export function OriginalViewer({ file, pageNumber }) {
     if (isPdf) {
       return (
         <div className="original-viewer__page">
-          <canvas ref={canvasRef} dir="ltr" aria-label={t('review.viewer.canvasLabel', { page: pageNumber })} role="img" />
+          <div className="original-viewer__canvas-box">
+            <canvas ref={canvasRef} dir="ltr" aria-label={t('review.viewer.canvasLabel', { page: pageNumber })} role="img" />
+            {overlay}
+          </div>
         </div>
       )
     }
@@ -234,6 +252,7 @@ export function OriginalViewer({ file, pageNumber }) {
                 : { width: '100%' }
             }
           />
+          {overlay}
         </div>
       </div>
     )

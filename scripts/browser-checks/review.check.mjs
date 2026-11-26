@@ -20,7 +20,9 @@ await runChecks('Review page behaviour', async ({ browser, check }) => {
   const page = await browser.newPage({ width: 1280, height: 900 })
   await openReview(page, { width: 1280, height: 900 })
   await page.waitFor(`document.querySelectorAll('.element-card').length >= 3`, { timeout: 15000 })
-  check('the mock extraction filled page 1 under StrictMode (one result, no duplicate run)', (await cards(page)) === 5, `cards: ${await cards(page)}`)
+  // The page's content is split over the tabs (decision 4): the five extracted elements are 3 texts + 1 table + 1 field.
+  const tabCounts = await page.eval(`[...document.querySelectorAll('.result-tabs__count')].map((n) => Number(n.textContent.replace(/[٠-٩]/g, (d) => d.charCodeAt(0) - 0x660)))`)
+  check('the mock extraction filled page 1 under StrictMode (one result, no duplicate run)', tabCounts.reduce((a, b) => a + b, 0) === 5 && (await cards(page)) === 3, `tabs: ${JSON.stringify(tabCounts)}, cards: ${await cards(page)}`)
 
   // ---------------------------------------------------------------- L3
   const triggers = await page.eval(`[...document.querySelectorAll('.insert-point__button')].map((b) => b.getAttribute('aria-label'))`)
@@ -79,7 +81,7 @@ await runChecks('Review page behaviour', async ({ browser, check }) => {
   await page.eval(`(() => { const el = document.querySelector('${searchSelector}'); const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(el, ''); el.dispatchEvent(new Event('input', { bubbles: true })) })()`)
 
   // ---------------------------------------------------------------- L6 (clipboard)
-  await page.click('.json-preview__toggle')
+  await page.click('[data-tab="json"]') // the JSON is a tab of the review now
   await page.waitFor(`document.querySelector('.json-preview__code')`)
   const jsonText = await page.eval(`document.querySelector('.json-preview__code').textContent`)
   check('L6 the JSON shows the stored text (not the normalized search form)', jsonText.includes('المدرسة') && !jsonText.includes('المدرسه'))
@@ -103,14 +105,14 @@ await runChecks('Review page behaviour', async ({ browser, check }) => {
   await sleep(300)
   ui = await page.eval(`({ alert: Boolean(document.querySelector('.json-preview__error')), label: document.querySelector('${copyButton}').textContent.trim(), copied: window.__copied })`)
   check('L6 success is shown only after the clipboard accepted the text, and the error disappears', !ui.alert && ui.label.includes('تم النسخ') && ui.copied === jsonText, JSON.stringify({ ...ui, copied: ui.copied?.length }))
-  await page.click('.json-preview__toggle')
+  await page.click('[data-tab="texts"]')
 
   // ---------------------------------------------------------------- L5 (undo behind modals)
   await typeIn(page, 0, 'عنوان بعد التعديل')
   await page.eval(`document.activeElement.blur()`)
   await sleep(150)
   const cardsBefore = await cards(page)
-  await page.click('.element-card:has(table) .icon-button--danger')
+  await page.click('.element-card--unclassified .icon-button--danger') // preserved raw data: deleting asks for confirmation
   await page.waitFor(`document.querySelector('dialog[open]')`)
   await page.key('z', { ctrl: true, vk: 90 })
   await page.key('z', { ctrl: true, vk: 90 })
@@ -137,12 +139,12 @@ await runChecks('Review page behaviour', async ({ browser, check }) => {
   await page.eval(`document.querySelector('${reviewButton}').click()`)
   await sleep(1200) // longer than the 400 ms debounce: the late commit must not undo the confirmation
   let p4 = await page.eval(`({ done: Boolean(document.querySelector('${reviewedText}')), invalidated: Boolean(document.querySelector('.review-bar__invalidated')), text: document.querySelectorAll('.element-card .editor-input')[0].value })`)
-  const stored = await page.eval(`(() => { const b = [...document.querySelectorAll('.json-preview__toggle')][0]; b.click(); return null })()`)
+  const stored = await page.eval(`(() => { document.querySelector('[data-tab="json"]').click(); return null })()`)
   await page.waitFor(`document.querySelector('.json-preview__code')`)
   const json = await page.eval(`JSON.parse(document.querySelector('.json-preview__code').textContent)`)
   const reviewedElement = JSON.stringify(json)
   check('P4 confirming right after typing (no blur) confirms the NEW text and stays confirmed', p4.done && !p4.invalidated && reviewedElement.includes('نص كتبته للتو'), JSON.stringify({ p4, stored }))
-  await page.click('.json-preview__toggle')
+  await page.click('[data-tab="texts"]')
   // (b) the normal mouse path
   await typeIn(page, 0, 'تعديل ثانٍ')
   await page.click(reviewButton)
@@ -172,7 +174,8 @@ await runChecks('Review page behaviour', async ({ browser, check }) => {
   await page.eval(`document.querySelector('.processing .button--secondary').click()`) // retry/reprocess (attempt 2 succeeds)
   await page.waitFor(`document.querySelector('.comparison')`, { timeout: 8000 })
   await page.eval(`[...document.querySelectorAll('.processing .button--secondary')].find((b) => !b.closest('.comparison')).click()`) // reprocess again
-  await sleep(150)
+  // The server checks the edit lock before a re-processing (decision 47), so the run starts a moment later.
+  await page.waitFor(`document.querySelector('.processing__running')`, { timeout: 5000 })
   const acceptState = await page.eval(`(() => { const b = document.querySelector('.comparison__actions .button--primary'); return { disabled: b.disabled, running: Boolean(document.querySelector('.processing__running')) } })()`)
   check('P5 while the page is being processed the accept button is disabled', acceptState.running && acceptState.disabled, JSON.stringify(acceptState))
   await sleep(1200)

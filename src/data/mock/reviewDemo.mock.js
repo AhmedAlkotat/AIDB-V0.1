@@ -15,10 +15,12 @@ import { buildMockElements } from '../../services/mockProcessingService.js'
 import { createDemoPdfFile } from './demoPdf.js'
 import { DEMO_USER } from './demoUser.mock.js'
 
-export const DEMO_REVIEW_IDS = Object.freeze({
+// A plain object (not frozen): a call such as Object.freeze at the top level is something a bundler must
+// keep, which would keep these demonstration ids in a production bundle that never uses them.
+export const DEMO_REVIEW_IDS = {
   toReview: 'demo-review-8-pages',
   approved: 'demo-approved-3-pages',
-})
+}
 
 function snapshotOf(document) {
   return serializeDocument(document, { includeOriginalExtraction: true })
@@ -62,6 +64,7 @@ export function seedDemoReviewDocuments(store) {
       snapshot,
       kind: 'demo',
       ownerId: DEMO_USER.id,
+      autoProcessOnOpen: true,
     })
   }
   if (!store.has(DEMO_REVIEW_IDS.approved)) {
@@ -74,6 +77,9 @@ export function seedDemoReviewDocuments(store) {
       kind: 'demo',
       ownerId: DEMO_USER.id,
       approval: { status: APPROVAL_STATUS.approved },
+      // The demonstration approval comes with its approved version (decision 14), so the history and the
+      // export can be tried. Nothing is really approved: there is no backend.
+      versions: [{ number: 1, approvedAt: new Date().toISOString(), approvedBy: 'demo-admin', approvedByName: 'مدير تجريبي', snapshot }],
     })
   }
 }

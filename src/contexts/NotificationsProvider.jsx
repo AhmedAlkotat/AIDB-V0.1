@@ -18,11 +18,14 @@ export function NotificationsProvider({ children, service = notificationService 
     const timer = setInterval(() => store.load({ quiet: true }), REFRESH_MS)
     const onFocus = () => store.load({ quiet: true })
     window.addEventListener('focus', onFocus)
+    // A service that can push (the simulated one does when a processing finishes) refreshes the bell at once.
+    const unsubscribe = service.subscribe?.(() => store.load({ quiet: true }))
     return () => {
       clearInterval(timer)
       window.removeEventListener('focus', onFocus)
+      unsubscribe?.()
     }
-  }, [store])
+  }, [store, service])
 
   const value = useMemo(
     () => ({ ...state, unreadCount: getUnreadCount(state.items), isMock: Boolean(service.isMock), service, reload: store.load, markRead: store.markRead, markAllRead: store.markAllRead }),

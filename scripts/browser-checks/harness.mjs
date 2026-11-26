@@ -49,6 +49,26 @@ export async function setLanguage(page, language) {
   await page.waitFor(`document.documentElement.lang === '${language}'`)
 }
 
+// The real upload flow (decision 41): with a file selected on the upload page, "Start processing" registers the
+// document (Pending) and queues it; nothing opens by itself. Resolves once the page confirms the registration.
+export async function startProcessing(page, { timeout = 20000 } = {}) {
+  await page.waitFor(`document.querySelector('.upload-actions__start.button--primary:not([disabled])')`, { timeout })
+  await page.click('.upload-actions__start.button--primary')
+  await page.waitFor(`document.querySelector('.upload-actions .alert--success')`, { timeout })
+}
+
+// After startProcessing: goes to the correction queue with the in-app link (a reload would empty the temporary
+// store), waits until the document leaves Pending / Processing (the simulated queue works in the background) and
+// opens its review from the list. `fileName` picks the row.
+export async function openUploadedReview(page, fileName, { timeout = 60000 } = {}) {
+  await page.eval(`document.querySelector('.upload-actions .alert--success a.inline-link').click()`)
+  await page.waitFor(`location.pathname === '/corrections'`, { timeout: 10000 })
+  const row = `[...document.querySelectorAll('.queue-item')].find((li) => li.textContent.includes(${JSON.stringify(fileName)}))`
+  await page.waitFor(`(() => { const li = ${row}; return li && li.dataset.state !== 'pending' && li.dataset.state !== 'processing' })()`, { timeout })
+  await page.eval(`${row}.querySelector('a.button--primary').click()`)
+  await page.waitFor(`location.pathname.includes('/corrections/review/')`, { timeout: 10000 })
+}
+
 // Collapses (false) or expands (true) the docked sidebar with the header menu button.
 export async function setSidebarOpen(page, open) {
   const isOpen = await page.eval(`getComputedStyle(document.querySelector('.sidebar')).display !== 'none'`)

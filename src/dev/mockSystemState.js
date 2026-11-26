@@ -29,7 +29,7 @@ export function createSeedState(now = new Date()) {
     seq: 100,
     settings: cloneSettings(DEFAULT_SETTINGS),
     storage: { scenario: 'normal' },
-    flags: { failNextBackup: false, failProtectiveBackup: false },
+    flags: { failNextBackup: false, failProtectiveBackup: false, insufficientSpace: false },
     backups: [
       { id: 'bkp-seed-3', createdAt: ago(1), type: BACKUP_TYPE.scheduled, status: BACKUP_STATUS.completed, sizeBytes: 3.2 * GB, locations: ['local', 'external'], protected: false, verifiedAt: null },
       { id: 'bkp-seed-2', createdAt: ago(2), type: BACKUP_TYPE.scheduled, status: BACKUP_STATUS.completed, sizeBytes: 3.1 * GB, locations: ['local', 'external'], protected: true, verifiedAt: ago(1, 20) },

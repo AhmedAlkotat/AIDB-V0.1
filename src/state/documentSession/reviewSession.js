@@ -11,10 +11,18 @@
 //
 // The session adds only UI-level state that is NOT part of the canonical model:
 // save status, which pages are processing, pending re-extraction candidates
-// (the "compare before replacing" step), a conceptual attempt history, and the
+// (the "compare before replacing" step), the attempt history, the edit lock and the
 // document's approval status. That state lives in memory with the session.
+//
+// Batch D: the session no longer OWNS processing. Page (re)processing goes to the central
+// queue through the `processing` port; when the port `survivesSessionClose` (the queue
+// simulation does), leaving the screen does NOT cancel the work (decision 2): the session
+// hands the running pages over (`detach`) and the queue finishes them into the store; a
+// reopened session takes them back (`adopt`). Ports without that flag (the plain mock used by
+// older tests) are cancelled on close as before.
 
 import { canEditDocument, canCreateNewVersion, getApprovalEligibility, isDocumentApproved, APPROVAL_STATUS } from '../../domain/document/approval.js'
+import { addAcceptedResult, appendAttempt, ATTEMPT_SCOPE, ATTEMPT_STATUS, ATTEMPT_TRIGGER, nextAttemptNumber, updateAttempt } from '../../domain/document/attempts.js'
 import { findPage } from '../../domain/document/document.js'
 import { hasMeaningfulContent } from '../../domain/document/elements.js'
 import { checkExtractionResult, INVALID_EXTRACTION_RESULT } from '../../domain/document/extractionResult.js'
@@ -24,7 +32,8 @@ import { SAVE_STATUS } from '../../domain/document/saveStatus.js'
 import { parseDocumentJson, serializeDocument, serializePage } from '../../domain/document/serialization.js'
 import { validateElements } from '../../domain/document/validation.js'
 import { createAutosaveController } from '../../services/autosaveController.js'
-import { ApprovalNotConnectedError, requestDocumentApproval, requestNewEditableVersion } from '../../services/approvalService.js'
+import { approvalService as defaultApprovalService, ApprovalNotConnectedError } from '../../services/approvalService.js'
+import { WORKFLOW_ERROR } from '../../services/workflowErrors.js'
 import { ACTION, createEditorReducer, createInitialEditorState } from './documentReducer.js'
 
 // Reasons shown when leaving the page would lose or interrupt work.
@@ -42,6 +51,8 @@ export const SESSION_ERROR = Object.freeze({
   notEligible: 'NOT_ELIGIBLE',
   noPermission: 'NO_PERMISSION',
   approvalPending: 'APPROVAL_PENDING',
+  // Another user holds the document's edit lock, or this user's lock ended (decision 47).
+  lockNotHeld: 'LOCK_NOT_HELD',
   // Text typed but not committed was saved to the page while the user was deciding:
   // the content they compared is not the current content any more.
   pendingEditsCommitted: 'PENDING_EDITS_COMMITTED',
@@ -80,8 +91,10 @@ export function createReviewSession({
   generateId = defaultGenerateId,
   now = () => new Date(),
   autosaveOptions,
-  approvalService = { requestDocumentApproval, requestNewEditableVersion },
+  approvalService = defaultApprovalService,
   autoProcess = true,
+  userId, // the signed-in user's id; with the record's owner it decides who may approve (decision 39)
+  lockService = null, // the document edit lock (decision 47); without one the session may always edit
 }) {
   // ---- load the stored document (validated; nothing is repaired) -----------
   const parsed = parseDocumentJson(JSON.stringify(record.snapshot))
@@ -98,9 +111,11 @@ export function createReviewSession({
   // it only comes from other writers. A page that already holds a successful
   // extraction is restored as succeeded (its content, corrections and review are
   // untouched); a page without one is marked failed so it can be retried.
+  // Pages the queue is still working on are NOT interrupted: the session takes them back in open().
+  const stillRunning = new Set((processing.getActivePages?.(record.id) ?? []).map((job) => job.pageNumber))
   let recovered = false
   for (const page of editor.document.pages) {
-    if (page.processing.status === PROCESSING_STATUS.processing) {
+    if (page.processing.status === PROCESSING_STATUS.processing && !stillRunning.has(page.pageNumber)) {
       const hadExtraction = page.originalExtraction !== null && page.originalExtraction !== undefined
       editor = reducer(editor, {
         type: ACTION.pageProcessingStatusSet,
@@ -122,18 +137,37 @@ export function createReviewSession({
   const statusBeforeProcessing = new Map() // pageNumber -> { status, errorCode } to restore if the run is cancelled
   const pendingFlushers = new Map() // key -> function that commits that input's typed text (see setUncommitted)
   const attemptCounts = {}
+  const attemptEntryIds = new Map() // 'page:attempt' -> id of the stored attempt entry (so a decision updates it)
   const uncommitted = new Set() // keys of inputs whose typed text was not committed to the document yet
   let closed = false
   let recoveryPending = recovered // the recovered state still has to be stored (done in open(), never at creation)
+
+  // A result that arrived while no session was open waits in the record for the user's decision
+  // (decision 40: only an undecided result; a rejected one is never kept). It is shown again here.
+  const initialCandidates = {}
+  for (const [key, candidate] of Object.entries(record.candidates ?? {})) {
+    const pageNumber = Number(key)
+    const checked = checkExtractionResult(editor.document, pageNumber, candidate?.elements)
+    if (!checked.ok) continue
+    initialCandidates[pageNumber] = { attempt: candidate.attempt, elements: checked.elements, receivedAt: candidate.receivedAt }
+    const waiting = (record.attempts ?? []).find((entry) => entry.pageNumber === pageNumber && entry.attempt === candidate.attempt && entry.status === ATTEMPT_STATUS.awaitingDecision)
+    if (waiting) attemptEntryIds.set(`${pageNumber}:${candidate.attempt}`, waiting.id)
+  }
+
+  const ownsDocument = userId === undefined ? true : record.ownerId === userId
   let view = {
     editor,
     save: { status: SAVE_STATUS.saved, error: null },
     processingPages: [], // page numbers with a running extraction
-    candidates: {}, // pageNumber -> { attempt, elements, receivedAt }
+    candidates: initialCandidates, // pageNumber -> { attempt, elements, receivedAt }
     attempts: {}, // pageNumber -> [{ attempt, outcome, at }]
     notices: {}, // pageNumber -> { code, errorCode? } last processing notice
     approvalStatus: record.approval?.status ?? APPROVAL_STATUS.none,
     approvalPending: false, // an approval request is in flight: the document must not change
+    // The edit lock (decision 47): null without a lock service; otherwise
+    //   { status: 'checking' | 'held' | 'readOnly' | 'lost' | 'available', holderName, expiresAt }
+    lock: lockService ? { status: 'checking', holderName: null, expiresAt: null } : null,
+    lastSavedAt: null, // when the storage last acknowledged a save of this session's edits
     role,
     hasEdits: false,
     uncommittedCount: 0,
@@ -165,6 +199,7 @@ export function createReviewSession({
     const { document } = view.editor
     const changed = document.pages.filter((page) => persistedPages.get(page.pageNumber) !== page)
     if (changed.length === 0) return
+    await assertLock() // the server checks the lock on every save (decision 47)
     if (typeof store.savePages === 'function') {
       for (const page of changed) {
         const check = validateElements(page.elements)
@@ -179,7 +214,10 @@ export function createReviewSession({
   }
 
   const autosave = createAutosaveController({ ...autosaveOptions, save: persist })
-  autosave.subscribe((save) => setView({ save: { status: save.status, error: save.error } }))
+  autosave.subscribe((save) => {
+    const justSaved = save.status === SAVE_STATUS.saved && view.hasEdits && view.save.status !== SAVE_STATUS.saved
+    setView({ save: { status: save.status, error: save.error }, ...(justSaved ? { lastSavedAt: now().toISOString() } : {}) })
+  })
 
   function applyToEditor(action) {
     const before = view.editor
@@ -196,9 +234,155 @@ export function createReviewSession({
   const getPage = (pageNumber) => findPage(view.editor.document, pageNumber)
   const isApproved = () => isDocumentApproved(view.approvalStatus)
 
-  function recordAttempt(pageNumber, attempt, outcome) {
+  // ---- the edit lock (decision 47) -----------------------------------------------------------
+  // One editor at a time. Without a lock service the session may always edit (older callers).
+  let leaseMs = null // the lease the service gave at the last (re)acquire: renewal starts at half of it
+  let renewing = false
+  const lockStatus = () => (lockService ? view.lock.status : 'held')
+  const canEditNow = () => lockStatus() === 'held'
+
+  function setLock(patch) {
+    if (lockService) setView({ lock: { ...view.lock, ...patch } })
+  }
+
+  // The service said this user no longer holds the lock: editing stops, what was saved stays.
+  function applyLockLoss(error) {
+    const heldByOther = error?.code === WORKFLOW_ERROR.lockHeld
+    setLock({ status: heldByOther ? 'readOnly' : 'lost', expiresAt: null })
+  }
+
+  async function assertLock() {
+    if (!lockService || isApproved()) return
+    try {
+      await lockService.assertHeld(record.id)
+    } catch (error) {
+      if (error?.code === WORKFLOW_ERROR.lockHeld || error?.code === WORKFLOW_ERROR.lockLost) applyLockLoss(error)
+      throw error
+    }
+  }
+
+  async function acquireLock() {
+    if (!lockService || isApproved()) return { ok: true }
+    try {
+      const outcome = await lockService.acquire(record.id)
+      if (closed) {
+        if (outcome.granted) lockService.release(record.id).catch(() => {})
+        return { ok: false }
+      }
+      if (outcome.granted) {
+        leaseMs = Math.max(1, new Date(outcome.lock.expiresAt).getTime() - now().getTime())
+        setLock({ status: 'held', holderName: outcome.lock.holderName, expiresAt: outcome.lock.expiresAt })
+        return { ok: true }
+      }
+      setLock({ status: 'readOnly', holderName: outcome.lock.holderName, expiresAt: outcome.lock.expiresAt })
+      return { ok: false, code: SESSION_ERROR.lockNotHeld }
+    } catch {
+      // The lock service could not be reached: nothing may be edited without it.
+      setLock({ status: 'lost', holderName: null, expiresAt: null })
+      return { ok: false, code: SESSION_ERROR.lockNotHeld }
+    }
+  }
+
+  // Edits keep the lock alive; it is renewed when half of the lease is gone (the lease itself is the service's).
+  async function renewLockIfNeeded() {
+    if (!lockService || renewing || lockStatus() !== 'held' || leaseMs === null) return
+    const remaining = new Date(view.lock.expiresAt).getTime() - now().getTime()
+    if (remaining > leaseMs / 2) return
+    renewing = true
+    try {
+      const { lock } = await lockService.renew(record.id)
+      setLock({ expiresAt: lock.expiresAt })
+    } catch (error) {
+      applyLockLoss(error)
+    } finally {
+      renewing = false
+    }
+  }
+
+  let unsubscribeLock = null
+  function watchLock() {
+    if (!lockService || unsubscribeLock) return
+    unsubscribeLock = lockService.subscribe(record.id, (lock) => {
+      if (closed) return
+      const mine = lock && (userId === undefined || lock.holderId === userId)
+      if (lock && !mine) setLock({ status: 'readOnly', holderName: lock.holderName, expiresAt: lock.expiresAt })
+      else if (!lock && lockStatus() === 'held') setLock({ status: 'lost', holderName: null, expiresAt: null }) // the lease ended
+      else if (!lock && lockStatus() === 'readOnly') setLock({ status: 'available', holderName: null, expiresAt: null }) // the other editor left
+    })
+  }
+
+  // ---- attempts and accepted results (decisions 11 and 40) ----------------------------------------
+  // Attempt entries carry metadata only (never content) and are kept in the store, independent of the
+  // audit log. A decision on a waiting candidate updates the same entry.
+  const STATUS_OF_OUTCOME = {
+    failed: ATTEMPT_STATUS.failed,
+    awaitingDecision: ATTEMPT_STATUS.awaitingDecision,
+    applied: ATTEMPT_STATUS.succeeded,
+    accepted: ATTEMPT_STATUS.accepted,
+    discarded: ATTEMPT_STATUS.rejected,
+  }
+
+  function storedAttempts() {
+    return (typeof store.peek === 'function' ? store.peek(record.id)?.attempts : null) ?? []
+  }
+
+  function persistAttempt(pageNumber, attempt, outcome, extra = {}) {
+    if (typeof store.updateMeta !== 'function') return
+    const status = STATUS_OF_OUTCOME[outcome]
+    const key = `${pageNumber}:${attempt}`
+    const attempts = storedAttempts()
+    const existingId = attemptEntryIds.get(key)
+    const finishedAt = now().toISOString()
+    try {
+      if (existingId && attempts.some((entry) => entry.id === existingId)) {
+        store.updateMeta(record.id, { attempts: updateAttempt(attempts, existingId, { status, finishedAt, ...extra }) })
+      } else {
+        const id = generateId('att')
+        attemptEntryIds.set(key, id)
+        store.updateMeta(record.id, {
+          attempts: appendAttempt(attempts, { id, scope: ATTEMPT_SCOPE.page, pageNumber, attempt, trigger: ATTEMPT_TRIGGER.reprocess, status, startedAt: extra.startedAt ?? finishedAt, finishedAt, errorCode: extra.errorCode ?? null, actorId: userId ?? null }),
+        })
+      }
+    } catch {
+      // Bookkeeping only: it never blocks the user's work.
+    }
+  }
+
+  function persistAcceptedResult(pageNumber, attempt, elements) {
+    if (typeof store.updateMeta !== 'function' || typeof store.peek !== 'function') return
+    try {
+      store.updateMeta(record.id, { resultHistory: addAcceptedResult(store.peek(record.id).resultHistory, pageNumber, { attempt, acceptedAt: now().toISOString(), elements }) })
+    } catch {
+      // Bookkeeping only.
+    }
+  }
+
+  function clearStoredCandidate(pageNumber) {
+    if (typeof store.updateMeta !== 'function' || typeof store.peek !== 'function') return
+    const stored = store.peek(record.id)?.candidates ?? {}
+    if (!(pageNumber in stored)) return
+    const { [pageNumber]: _removed, ...rest } = stored
+    store.updateMeta(record.id, { candidates: rest })
+  }
+
+  // A result that waits for the user's decision is kept in the record too, so leaving the screen (or the page
+  // closing) at that moment never loses it. It is removed as soon as the user decides (removeCandidate) and
+  // only an UNDECIDED result is ever kept here: a rejected one is dropped for good (decision 40).
+  function persistCandidate(pageNumber, candidate) {
+    if (typeof store.updateMeta !== 'function' || typeof store.peek !== 'function') return
+    try {
+      store.updateMeta(record.id, { candidates: { ...(store.peek(record.id)?.candidates ?? {}), [pageNumber]: candidate } })
+    } catch {
+      // Bookkeeping only.
+    }
+  }
+
+  const startedAtOf = new Map() // pageNumber -> when the running attempt started
+
+  function recordAttempt(pageNumber, attempt, outcome, extra) {
     const list = view.attempts[pageNumber] ?? []
     setView({ attempts: { ...view.attempts, [pageNumber]: [...list, { attempt, outcome, at: now().toISOString() }] } })
+    persistAttempt(pageNumber, attempt, outcome, { startedAt: startedAtOf.get(pageNumber), ...extra })
   }
 
   function setNotice(pageNumber, notice) {
@@ -218,25 +402,58 @@ export function createReviewSession({
     return flushers.length
   }
 
-  // ---- processing (mock) -------------------------------------------------------
+  // The next attempt number of a page: after every attempt this session ran AND every one already stored.
+  function nextAttempt(pageNumber) {
+    return Math.max(attemptCounts[pageNumber] ?? 0, nextAttemptNumber(storedAttempts(), pageNumber) - 1) + 1
+  }
+
+  // The status a page has in the store (a page the queue is processing shows "processing" there,
+  // which says nothing about what it was before).
+  function statusOnDisk(pageNumber) {
+    const stored = typeof store.peek === 'function' ? store.peek(record.id)?.snapshot.pages.find((page) => page.pageNumber === pageNumber) : null
+    const status = stored?.processing.status
+    return status && status !== PROCESSING_STATUS.processing ? stored.processing : { status: PROCESSING_STATUS.notProcessed, errorCode: null }
+  }
+
+  // ---- processing (through the queue port) -------------------------------------------------------
   async function processPage(pageNumber) {
     if (!getPage(pageNumber) || controllers.has(pageNumber) || isApproved() || view.approvalPending || closed) return { ok: false }
+    if (!canEditNow()) return { ok: false, code: SESSION_ERROR.lockNotHeld }
     commitPendingEdits()
-    const page = getPage(pageNumber)
+    if (lockService) {
+      try {
+        await assertLock() // the server checks the lock on every re-processing (decision 47)
+      } catch {
+        return { ok: false, code: SESSION_ERROR.lockNotHeld }
+      }
+      if (controllers.has(pageNumber) || closed) return { ok: false }
+    }
+    const attempt = nextAttempt(pageNumber)
+    return runExtraction(pageNumber, attempt, (signal) => processing.extractPage({ documentId: record.id, pageNumber, attempt, signal }))
+  }
 
-    const previousStatus = page.processing.status
-    const previousErrorCode = page.processing.errorCode
-    const attempt = (attemptCounts[pageNumber] ?? 0) + 1
+  // Waits for a page the queue was already working on when this session opened.
+  function adoptRun(pageNumber, attempt, promise) {
+    return runExtraction(pageNumber, attempt, () => promise)
+  }
+
+  async function runExtraction(pageNumber, attempt, start) {
+    const page = getPage(pageNumber)
+    const wasRunning = page.processing.status === PROCESSING_STATUS.processing
+    const previous = wasRunning ? statusOnDisk(pageNumber) : page.processing
+    const previousStatus = previous.status
+    const previousErrorCode = previous.errorCode
     const controller = new AbortController()
     controllers.set(pageNumber, controller)
     statusBeforeProcessing.set(pageNumber, { status: previousStatus, errorCode: previousErrorCode })
+    startedAtOf.set(pageNumber, now().toISOString())
     setNotice(pageNumber, null)
     applyToEditor({ type: ACTION.pageProcessingStatusSet, pageNumber, status: PROCESSING_STATUS.processing })
     setView({ processingPages: [...controllers.keys()] })
 
     let outcome
     try {
-      outcome = { result: await processing.extractPage({ documentId: record.id, pageNumber, attempt, signal: controller.signal }) }
+      outcome = { result: await start(controller.signal) }
     } catch (error) {
       outcome = { error }
     }
@@ -274,26 +491,29 @@ export function createReviewSession({
     }
 
     if (failure) {
-      // Existing content and corrections are untouched. Without content the page
-      // is marked failed (never left "processing"); with content its previous
-      // status is restored and the user is told.
+      // Existing content and corrections are untouched (the current result is always kept when a
+      // re-processing fails, decision 38). Without content the page is marked failed (never left
+      // "processing"); with content its previous status is restored and the user is told.
       if (hasContent) {
         applyToEditor({ type: ACTION.pageProcessingStatusSet, pageNumber, status: previousStatus, errorCode: previousErrorCode })
         setNotice(pageNumber, { code: 'reprocessFailed', errorCode: failure.errorCode })
       } else {
         applyToEditor({ type: ACTION.pageProcessingStatusSet, pageNumber, status: PROCESSING_STATUS.failed, errorCode: failure.errorCode })
       }
-      recordAttempt(pageNumber, attempt, 'failed')
+      recordAttempt(pageNumber, attempt, 'failed', { errorCode: failure.errorCode })
       return { ok: false, error: failure.error }
     }
 
     if (hasContent) {
       // Never replace existing content automatically: keep the (validated) candidate for comparison.
       applyToEditor({ type: ACTION.pageProcessingStatusSet, pageNumber, status: previousStatus, errorCode: previousErrorCode })
-      setView({ candidates: { ...view.candidates, [pageNumber]: { attempt, elements, receivedAt: now().toISOString() } } })
+      const candidate = { attempt, elements, receivedAt: now().toISOString() }
+      setView({ candidates: { ...view.candidates, [pageNumber]: candidate } })
+      persistCandidate(pageNumber, candidate)
       recordAttempt(pageNumber, attempt, 'awaitingDecision')
     } else {
       recordAttempt(pageNumber, attempt, 'applied')
+      persistAcceptedResult(pageNumber, attempt, elements)
     }
     return { ok: true }
   }
@@ -302,6 +522,7 @@ export function createReviewSession({
     const next = { ...view.candidates }
     delete next[pageNumber]
     setView({ candidates: next })
+    clearStoredCandidate(pageNumber) // never left behind in the record once decided
   }
 
   function maybeAutoProcess(pageNumber) {
@@ -331,11 +552,14 @@ export function createReviewSession({
         // While an approval request is in flight the document must not change, or the
         // approval could cover content nobody reviewed.
         if (view.approvalPending) return { ok: false, code: SESSION_ERROR.approvalPending }
+        // Only the editor who holds the document's lock may change it (decision 47).
+        if (!canEditNow()) return { ok: false, code: SESSION_ERROR.lockNotHeld }
         const target = action.pageNumber ?? view.editor.lastVisitedPage
         if (getPage(target)?.processing.status === PROCESSING_STATUS.processing) return { ok: false, code: SESSION_ERROR.pageProcessing }
       }
       const after = applyToEditor(action)
       if (after.lastError) return { ok: false, code: after.lastError.code, details: after.lastError.details }
+      if (changesContent) renewLockIfNeeded()
       return { ok: true }
     },
 
@@ -377,10 +601,13 @@ export function createReviewSession({
       const contentBefore = getPage(pageNumber).elements
       commitPendingEdits()
       if (getPage(pageNumber).elements !== contentBefore) return { ok: false, code: SESSION_ERROR.pendingEditsCommitted }
+      if (!canEditNow()) return { ok: false, code: SESSION_ERROR.lockNotHeld }
       const after = applyToEditor({ type: ACTION.extractionApplied, pageNumber, elements: candidate.elements })
       if (after.lastError) return { ok: false, code: after.lastError.code, details: after.lastError.details }
       removeCandidate(pageNumber)
       recordAttempt(pageNumber, candidate.attempt, 'accepted')
+      // The accepted result is kept in full, the earlier ones too (decision 40).
+      persistAcceptedResult(pageNumber, candidate.attempt, candidate.elements)
       return { ok: true }
     },
 
@@ -388,6 +615,7 @@ export function createReviewSession({
     discardCandidate(pageNumber) {
       const candidate = view.candidates[pageNumber]
       if (!candidate) return { ok: false, code: SESSION_ERROR.actionNotAllowed }
+      // A rejected result is dropped for good: only the fact that it was rejected stays (decision 40).
       removeCandidate(pageNumber)
       recordAttempt(pageNumber, candidate.attempt, 'discarded')
       return { ok: true }
@@ -398,6 +626,14 @@ export function createReviewSession({
     // ---- saving ------------------------------------------------------------------
     flushSave: () => autosave.flush(),
     retrySave: () => autosave.retry(),
+
+    // The explicit "Save draft" button (decision 13): commits typed text, then saves everything now.
+    // SAVING IS NOT APPROVAL: nothing about the approval status changes. Resolves with the save state.
+    async saveDraft() {
+      commitPendingEdits()
+      const state = await autosave.flush()
+      return { ok: state.status === SAVE_STATUS.saved, status: state.status }
+    },
 
     // Inputs report text that was typed but not committed to the document yet.
     // Until it is committed the work counts as unsaved.
@@ -423,7 +659,8 @@ export function createReviewSession({
     getNavigationGuard() {
       const reasons = []
       if (session.getEffectiveSaveStatus() !== SAVE_STATUS.saved) reasons.push(LEAVE_REASON.unsavedChanges)
-      if (view.processingPages.length > 0) reasons.push(LEAVE_REASON.processingActive)
+      // Processing the queue owns goes on after leaving (decision 2): it is no reason to stay.
+      if (view.processingPages.length > 0 && !processing.survivesSessionClose) reasons.push(LEAVE_REASON.processingActive)
       if (Object.keys(view.candidates).length > 0) reasons.push(LEAVE_REASON.pendingComparison)
       return { shouldBlock: reasons.length > 0, reasons }
     },
@@ -445,6 +682,8 @@ export function createReviewSession({
         activeProcessingCount: view.processingPages.length,
         role: view.role,
         approvalStatus: view.approvalStatus,
+        isOwner: ownsDocument,
+        holdsLock: canEditNow() || isApproved(),
       })
     },
 
@@ -467,7 +706,8 @@ export function createReviewSession({
         await approvalService.requestDocumentApproval(record.id)
       } catch (error) {
         setView({ approvalPending: false })
-        return { ok: false, code: error instanceof ApprovalNotConnectedError ? error.code : 'APPROVAL_FAILED' }
+        if (error?.code === WORKFLOW_ERROR.lockHeld || error?.code === WORKFLOW_ERROR.lockLost) applyLockLoss(error)
+        return { ok: false, code: error instanceof ApprovalNotConnectedError || typeof error?.code === 'string' ? error.code : 'APPROVAL_FAILED' }
       }
 
       let persisted = false
@@ -480,6 +720,11 @@ export function createReviewSession({
         persisted = false
       }
       setView({ approvalStatus: APPROVAL_STATUS.approved, approvalPending: false })
+      // Editing is over: the document's lock is released (saved work is untouched).
+      if (lockService) {
+        lockService.release(record.id).catch(() => {})
+        setLock({ status: 'available', holderName: null, expiresAt: null })
+      }
       return { ok: true, persisted }
     },
 
@@ -488,9 +733,29 @@ export function createReviewSession({
       try {
         await approvalService.requestNewEditableVersion(record.id)
       } catch (error) {
-        return { ok: false, code: error instanceof ApprovalNotConnectedError ? error.code : 'VERSION_FAILED' }
+        return { ok: false, code: error instanceof ApprovalNotConnectedError || typeof error?.code === 'string' ? error.code : 'VERSION_FAILED' }
+      }
+      // The approved version stays in the history; the document is now an editable NEW version that needs
+      // its own approval (decision 14). Editing it needs the lock like any other editing.
+      try {
+        if (typeof store.setApprovalStatus === 'function') await store.setApprovalStatus(record.id, APPROVAL_STATUS.none)
+      } catch {
+        // The service already acknowledged the new version; the store write is only the local copy.
+      }
+      setView({ approvalStatus: APPROVAL_STATUS.none })
+      if (lockService) {
+        setLock({ status: 'checking' })
+        await acquireLock()
       }
       return { ok: true }
+    },
+
+    // "Start editing" after another editor left or this user's lock ended: takes the lock again and
+    // retries a save that was refused because of it. Saved work is untouched.
+    async requestEditLock() {
+      const outcome = await acquireLock()
+      if (outcome.ok) autosave.retry()
+      return outcome
     },
 
     // Starts the session: the first page opens like any other (a pending page is
@@ -505,7 +770,18 @@ export function createReviewSession({
         recoveryPending = false
         autosave.markDirty()
       }
-      maybeAutoProcess(view.editor.lastVisitedPage)
+      watchLock()
+      if (lockService) {
+        // Editing needs the lock; until it is known the document is read-only. A page the queue is
+        // still working on is taken back (decision 2), and an untouched page starts when it is opened.
+        acquireLock().then(() => maybeAutoProcess(view.editor.lastVisitedPage))
+      } else {
+        maybeAutoProcess(view.editor.lastVisitedPage)
+      }
+      for (const job of processing.getActivePages?.(record.id) ?? []) {
+        const waiting = processing.adopt?.({ documentId: record.id, pageNumber: job.pageNumber })
+        if (waiting && getPage(job.pageNumber) && !controllers.has(job.pageNumber)) adoptRun(job.pageNumber, job.attempt ?? nextAttempt(job.pageNumber), waiting)
+      }
     },
 
     // Leaving the page. Cancels running extractions (their pages return to the
@@ -515,6 +791,12 @@ export function createReviewSession({
       if (closed) return
       closed = true
       commitPendingEdits()
+      if (processing.survivesSessionClose) {
+        // Decision 2: leaving this screen does not cancel the work. The queue keeps the running
+        // pages and finishes them into the store (apply, or keep as a candidate for the next visit).
+        for (const pageNumber of controllers.keys()) processing.detach?.({ documentId: record.id, pageNumber })
+      }
+      // Aborting only makes THIS session stop waiting; a queue's own job does not listen to this signal.
       for (const controller of controllers.values()) controller.abort()
       controllers.clear()
       for (const [pageNumber, before] of statusBeforeProcessing) {
@@ -522,7 +804,12 @@ export function createReviewSession({
       }
       statusBeforeProcessing.clear()
       setView({ processingPages: [] })
+      // Stop listening at once (the session may be opened again right away, as React StrictMode does), and
+      // release the lock only if it was NOT reopened meanwhile: the new run then owns it.
+      unsubscribeLock?.()
+      unsubscribeLock = null
       await autosave.flush()
+      if (closed && lockService && lockStatus() === 'held') await lockService.release(record.id).catch(() => {})
     },
   }
 

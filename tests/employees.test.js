@@ -430,12 +430,12 @@ describe('role-based dashboard figures', () => {
 
   test('an employee\'s figures count only their own documents', () => {
     const own = selectVisibleDocuments(documentsWithForeign(), employee)
-    assert.deepEqual(getDocumentStats(own), { total: 2, approved: 1, needsCorrection: 1 })
+    assert.deepEqual(getDocumentStats(own), { total: 2, approved: 1, needsCorrection: 1, byState: { pending: 0, processing: 0, readyForReview: 1, failed: 0, manualEditing: 0, approved: 1 } })
     assert.ok(own.every((item) => item.ownerId === 'demo-employee'))
   })
 
   test('the Admin\'s figures cover the whole institution', () => {
-    assert.deepEqual(getDocumentStats(selectVisibleDocuments(documentsWithForeign(), admin)), { total: 4, approved: 1, needsCorrection: 3 })
+    assert.deepEqual(getDocumentStats(selectVisibleDocuments(documentsWithForeign(), admin)), { total: 4, approved: 1, needsCorrection: 3, byState: { pending: 0, processing: 0, readyForReview: 3, failed: 0, manualEditing: 0, approved: 1 } })
   })
 
   test('another employee sees none of the first employee\'s documents', () => {
@@ -444,7 +444,7 @@ describe('role-based dashboard figures', () => {
   })
 
   test('figures of nothing are zeros, and recent activity is newest first and limited', () => {
-    assert.deepEqual(getDocumentStats([]), { total: 0, approved: 0, needsCorrection: 0 })
+    assert.deepEqual(getDocumentStats([]), { total: 0, approved: 0, needsCorrection: 0, byState: { pending: 0, processing: 0, readyForReview: 0, failed: 0, manualEditing: 0, approved: 0 } })
     const items = Array.from({ length: 8 }, (_, index) => ({ id: `d${index}`, updatedAt: `2026-01-0${index + 1}T00:00:00.000Z`, approvalStatus: 'none' }))
     const recent = getRecentDocuments(items, 5)
     assert.deepEqual(recent.map((item) => item.id), ['d7', 'd6', 'd5', 'd4', 'd3'])

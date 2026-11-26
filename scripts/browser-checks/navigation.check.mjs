@@ -26,16 +26,19 @@ await runChecks('Navigation guard (P3)', async ({ browser, check }) => {
   check('P3 unsaved typing is saved and the navigation then proceeds exactly once (no dialog needed)', pushes === 1, `history writes: ${pushes}`)
   check('P3 no "leave" dialog was shown for a successful save', await page.eval(`!document.querySelector('dialog[open]')`))
 
-  // A running extraction needs the user's decision: stay, then leave.
+  // A running extraction no longer blocks leaving (decision 2: processing goes on in the background); a result
+  // waiting for the user's decision still does, so the user is asked: stay, then leave.
   await page.goto(`${BASE_URL}/corrections/review/demo-review-8-pages`)
   await page.waitFor(`document.querySelectorAll('.element-card').length >= 1`, { timeout: 15000 })
+  await page.waitFor(`document.querySelector('[data-lock=held]')`, { timeout: 5000 })
   await page.eval(`window.__pushes = 0; const push = history.pushState.bind(history); history.pushState = (...a) => { window.__pushes += 1; return push(...a) }; const rep = history.replaceState.bind(history); history.replaceState = (...a) => { window.__pushes += 1; return rep(...a) }`)
-  await page.click('.processing .button--secondary') // re-extract: now running (700 ms)
+  await page.click('.processing .button--secondary') // re-extract
+  await page.waitFor(`document.querySelector('.comparison')`, { timeout: 10000 }) // the result waits for a decision
   await page.click('a.sidebar__link[href="/corrections"]')
   await page.waitFor(`document.querySelector('dialog[open]')`)
-  check('P3 a running extraction blocks the navigation and asks the user', await page.eval(`location.pathname.includes('/review/')`))
+  check('P3 a result waiting for a decision blocks the navigation and asks the user', await page.eval(`location.pathname.includes('/review/')`))
   await page.eval(`window.dispatchEvent(new Event('resize'))`) // re-render while the dialog is open
-  await sleep(1100) // the extraction ends; the dialog is re-evaluated, a comparison is waiting
+  await sleep(500)
   await page.eval(`document.querySelector('dialog[open] .button--secondary')?.click()`) // "stay"
   await sleep(300)
   check('P3 "stay" keeps the user on the page', await page.eval(`location.pathname.includes('/review/') && !document.querySelector('dialog[open]')`))

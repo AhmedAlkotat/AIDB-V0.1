@@ -19,6 +19,7 @@
 //                           results, drafts and versions stay); list()/get() no longer return it
 //   listTrashed()        -> summaries of the hidden documents (with deletedAt / deletedBy)
 //   restoreFromTrash(id) -> shows it again;  purge(id) -> removes it for good (bin only)
+//   updateMeta(id, patch) -> merges workflow metadata (see "Workflow metadata" below); synchronous
 //   reset()              -> forgets every record (used when the signed-in user changes,
 //                           so one user's documents never reach the next session)
 //
@@ -28,8 +29,22 @@
 // by domain/document/access.js, not by the store.
 // `snapshot` is the serialized canonical document (see serializeDocument with
 // includeOriginalExtraction: true), i.e. plain JSON.
+//
+// Workflow metadata (Batch D, all plain JSON, all optional with a safe default):
+//   workflow       { phase, queuedAt, startedAt, finishedAt, errorCode }  the queue's view of the document-level
+//                  processing (domain/document/lifecycle.js). Default: completed.
+//   attempts       [ attempt metadata ]   every processing attempt, never any content (decisions 11, 40)
+//   resultHistory  { [pageNumber]: [ { attempt, acceptedAt, elements } ] }  every ACCEPTED extraction result
+//   candidates     { [pageNumber]: { attempt, elements, receivedAt } }  a result waiting for the user's decision
+//                  while no review session is open; never kept for a rejected result (decision 40)
+//   versions       [ approved version ]   previous approved versions and their dates (decision 14)
+//   documentType / template   what the processing recognised (both optional; unknown layouts are fine)
+//   autoProcessOnOpen   demonstration documents only: process an untouched page when it is opened
+// The document STATE (Pending ... Approved) is derived from these and the pages, never stored.
 
 import { APPROVAL_STATUS } from '../domain/document/approval.js'
+import { DEFAULT_WORKFLOW, getDocumentState } from '../domain/document/lifecycle.js'
+import { latestVersion, summarizeVersions } from '../domain/document/versions.js'
 import { deepClone } from '../domain/document/utils.js'
 
 export const STORAGE_ERROR = Object.freeze({
@@ -37,6 +52,7 @@ export const STORAGE_ERROR = Object.freeze({
   notFound: 'DOCUMENT_NOT_FOUND',
   pageMismatch: 'PAGE_MISMATCH',
   invalidApproval: 'INVALID_APPROVAL_STATUS',
+  invalidMeta: 'INVALID_META',
 })
 
 export class StorageError extends Error {
@@ -47,10 +63,32 @@ export class StorageError extends Error {
   }
 }
 
+const META_KEYS = ['workflow', 'attempts', 'resultHistory', 'candidates', 'versions', 'documentType', 'template', 'autoProcessOnOpen']
+
+function fileKindOf(record) {
+  const mime = record.snapshot.file.mimeType ?? ''
+  return mime === 'application/pdf' || /\.pdf$/i.test(record.name ?? '') ? 'pdf' : 'image'
+}
+
 function summarize(record) {
   const pages = record.snapshot.pages
   const reviewedCount = pages.filter((page) => page.review.status === 'reviewed').length
+  const approved = latestVersion(record.versions)
   return {
+    state: getDocumentState({ approvalStatus: record.approval.status, workflow: record.workflow, pages }),
+    workflowPhase: record.workflow.phase,
+    failureCode: record.workflow.errorCode,
+    queuedAt: record.workflow.queuedAt,
+    startedAt: record.workflow.startedAt,
+    finishedAt: record.workflow.finishedAt,
+    documentType: record.documentType,
+    template: record.template,
+    fileKind: fileKindOf(record),
+    versionCount: record.versions.length,
+    latestVersion: approved?.number ?? null,
+    approvedAt: approved?.approvedAt ?? null,
+    approvedByName: approved?.approvedByName ?? null,
+    autoProcessOnOpen: record.autoProcessOnOpen,
     id: record.id,
     name: record.name,
     kind: record.kind,
@@ -62,11 +100,17 @@ function summarize(record) {
     deletedAt: record.deletedAt ?? null,
     deletedBy: record.deletedBy ?? null,
     processingCount: pages.filter((page) => page.processing?.status === 'processing').length,
+    processedCount: pages.filter((page) => page.processing?.status === 'succeeded').length,
+    failedPageCount: pages.filter((page) => page.processing?.status === 'failed').length,
     totalPages: record.snapshot.file.totalPages,
     selectedCount: pages.length,
     reviewedCount,
     lastVisitedPage: record.lastVisitedPage,
   }
+}
+
+function copyOf(record) {
+  return { ...record, approval: { ...record.approval }, snapshot: deepClone(record.snapshot), workflow: { ...record.workflow }, attempts: deepClone(record.attempts), resultHistory: deepClone(record.resultHistory), candidates: deepClone(record.candidates), versions: deepClone(record.versions), template: record.template ? { ...record.template } : null }
 }
 
 export function createMemoryDocumentStore({ now = () => new Date().toISOString(), generateId } = {}) {
@@ -86,7 +130,7 @@ export function createMemoryDocumentStore({ now = () => new Date().toISOString()
   return {
     isDurable: false,
 
-    create({ name, file = null, snapshot, kind = 'upload', usesMockProcessing = true, approval, lastVisitedPage = null, id, ownerId = null }) {
+    create({ name, file = null, snapshot, kind = 'upload', usesMockProcessing = true, approval, lastVisitedPage = null, id, ownerId = null, workflow, documentType = null, template = null, autoProcessOnOpen = false, versions = [] }) {
       const recordId = id ?? nextId()
       const timestamp = now()
       records.set(recordId, {
@@ -102,6 +146,14 @@ export function createMemoryDocumentStore({ now = () => new Date().toISOString()
         lastVisitedPage,
         deletedAt: null,
         deletedBy: null,
+        workflow: { ...DEFAULT_WORKFLOW, ...(workflow ?? {}) },
+        attempts: [],
+        resultHistory: {},
+        candidates: {},
+        versions: deepClone(versions),
+        documentType,
+        template: template ? deepClone(template) : null,
+        autoProcessOnOpen,
         snapshot: deepClone(snapshot),
       })
       notify()
@@ -112,7 +164,37 @@ export function createMemoryDocumentStore({ now = () => new Date().toISOString()
     get(id) {
       const record = records.get(id)
       if (!record || record.deletedAt) return null
-      return { ...record, approval: { ...record.approval }, snapshot: deepClone(record.snapshot) }
+      return copyOf(record)
+    },
+
+    // The bookkeeping of a document without its content (cheap to read on every change): the attempt log,
+    // the versions' summaries (never their content), how many results were accepted per page, and what
+    // the processing recognised. null for an unknown or hidden document.
+    getMeta(id) {
+      const record = records.get(id)
+      if (!record || record.deletedAt) return null
+      return {
+        attempts: deepClone(record.attempts),
+        versions: summarizeVersions(record.versions),
+        acceptedResultCounts: Object.fromEntries(Object.entries(record.resultHistory).map(([page, list]) => [page, list.length])),
+        workflow: { ...record.workflow },
+        documentType: record.documentType,
+        template: record.template ? { ...record.template } : null,
+      }
+    },
+
+    // The approved content of ONE version (the history screen shows it read-only), or null.
+    getVersion(id, number) {
+      const record = records.get(id)
+      const version = record && !record.deletedAt ? record.versions.find((candidate) => candidate.number === number) : null
+      return version ? deepClone(version) : null
+    },
+
+    // Like get(), but a hidden (soft-deleted) document is returned too. Only for the services that
+    // play the server (the queue finishing work on a document that was just deleted, the bin).
+    peek(id) {
+      const record = records.get(id)
+      return record ? copyOf(record) : null
     },
 
     list() {
@@ -196,6 +278,21 @@ export function createMemoryDocumentStore({ now = () => new Date().toISOString()
       record.approval = { status }
       record.updatedAt = now()
       await Promise.resolve() // the acknowledgement
+      notify()
+    },
+
+    // Merges workflow metadata into a document (the keys listed under "Workflow metadata" above;
+    // anything else is refused). Works on a hidden document too, so work the queue finishes after a
+    // delete still lands in the record. Synchronous: the metadata is bookkeeping of the simulated
+    // server, not user content (the user's content goes through saveDraft/savePages).
+    updateMeta(id, patch) {
+      const record = records.get(id)
+      if (!record) throw new StorageError(STORAGE_ERROR.notFound, `No document with ID "${id}".`)
+      for (const key of Object.keys(patch)) {
+        if (!META_KEYS.includes(key)) throw new StorageError(STORAGE_ERROR.invalidMeta, `"${key}" is not workflow metadata.`)
+      }
+      for (const [key, value] of Object.entries(patch)) record[key] = key === 'workflow' ? { ...record.workflow, ...value } : deepClone(value)
+      record.updatedAt = now()
       notify()
     },
 

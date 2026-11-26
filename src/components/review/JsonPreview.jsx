@@ -11,9 +11,11 @@ import { Icon } from '../common/Icon.jsx'
 // Copying reports success ONLY after the clipboard accepted the text; when it
 // refuses (no permission, an insecure page, an unsupported browser) a visible
 // error is shown instead.
-export function JsonPreview({ document, pageNumber }) {
+//
+// `embedded` is the JSON TAB of the review (decision 4): always open, without its own toggle.
+export function JsonPreview({ document, pageNumber, embedded = false }) {
   const { t } = useTranslation()
-  const [isOpen, setIsOpen] = useState(false)
+  const [isOpen, setIsOpen] = useState(embedded)
   // Feedback of the last copy attempt; it only counts for the page that was copied.
   const [copyResult, setCopyResult] = useState({ state: 'idle', pageNumber })
   const copyState = copyResult.pageNumber === pageNumber ? copyResult.state : 'idle' // idle | copied | failed
@@ -43,21 +45,23 @@ export function JsonPreview({ document, pageNumber }) {
   }
 
   return (
-    <section className="json-preview">
-      <button
-        type="button"
-        className="json-preview__toggle"
-        aria-expanded={isOpen}
-        aria-controls={panelId}
-        onClick={() => {
-          setCopyState('idle')
-          setIsOpen((open) => !open)
-        }}
-      >
-        <Icon name="code" size={18} />
-        {isOpen ? t('review.json.hide') : t('review.json.show')}
-        <span className="badge badge--neutral">{t('review.json.readOnly')}</span>
-      </button>
+    <section className={`json-preview${embedded ? ' json-preview--embedded' : ''}`}>
+      {!embedded && (
+        <button
+          type="button"
+          className="json-preview__toggle"
+          aria-expanded={isOpen}
+          aria-controls={panelId}
+          onClick={() => {
+            setCopyState('idle')
+            setIsOpen((open) => !open)
+          }}
+        >
+          <Icon name="code" size={18} />
+          {isOpen ? t('review.json.hide') : t('review.json.show')}
+          <span className="badge badge--neutral">{t('review.json.readOnly')}</span>
+        </button>
+      )}
       {isOpen && (
         <div id={panelId} className="json-preview__panel">
           <p className="json-preview__note">{t('review.json.note')}</p>

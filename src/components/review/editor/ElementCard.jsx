@@ -1,15 +1,19 @@
+import { hasLocation } from '../../../domain/document/location.js'
 import { ELEMENT_TYPE_LIST } from '../../../domain/document/schema.js'
 import { useTranslation } from '../../../hooks/useTranslation.js'
 import { Icon } from '../../common/Icon.jsx'
 import { ElementBody } from './ElementBody.jsx'
 
 // One element of the page, in document order: a drag handle, a type selector,
-// move up/down buttons (the accessible alternative to dragging), delete, a
-// label saying whether the content was typed by a person or extracted by the
-// (mock) AI, and the editable body.
+// move up/down buttons (the accessible alternative to dragging), delete and the
+// editable body. NO provenance label is shown (decision 49: marks saying whether the
+// content came from the AI or was typed distract the user); where the content came from
+// is tracked internally in `element.source` and kept in the data.
+// When the model reported where the element sits on the original page (decision 50,
+// optional) a "show on the page" button highlights it there; without coordinates the
+// card works exactly the same.
 export function ElementCard({ element, index, count, ctx, matches, isMatch, dropPosition, dragHandlers, onChangeType, onMove, onDelete }) {
   const { t, formatNumber } = useTranslation()
-  const isMock = element.source.details?.mock === true
   const position = t('review.element.position', { index: formatNumber(index + 1), count: formatNumber(count) })
   const typeLabel = t(`review.element.types.${element.type}`)
 
@@ -19,6 +23,8 @@ export function ElementCard({ element, index, count, ctx, matches, isMatch, drop
       data-element-id={element.id}
       onDragOver={dragHandlers.onDragOver}
       onDrop={dragHandlers.onDrop}
+      onFocus={() => ctx.onActivate?.(element)}
+      onMouseEnter={() => ctx.onActivate?.(element)}
     >
       <div className="element-card__header">
         {!ctx.disabled && (
@@ -46,10 +52,10 @@ export function ElementCard({ element, index, count, ctx, matches, isMatch, drop
           </select>
         </label>
 
-        {element.source.kind === 'manual' ? (
-          <span className="badge badge--warning">{t('review.element.sourceManual')}</span>
-        ) : (
-          <span className="badge badge--neutral">{isMock ? t('review.element.sourceMock') : t('review.element.sourceAi')}</span>
+        {hasLocation(element) && ctx.onActivate && (
+          <button type="button" className="icon-button icon-button--sm" aria-label={t('review.element.locate', { type: typeLabel, position })} title={t('review.element.locateShort')} onClick={() => ctx.onActivate(element, { reveal: true })}>
+            <Icon name="mapPin" size={16} />
+          </button>
         )}
 
         {!ctx.disabled && (

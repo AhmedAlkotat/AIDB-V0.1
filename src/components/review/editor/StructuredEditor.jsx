@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { planConversion } from '../../../domain/document/conversion.js'
 import { createElement } from '../../../domain/document/elements.js'
+import { ELEMENT_TYPE_LIST } from '../../../domain/document/schema.js'
 import { searchPageElements } from '../../../domain/document/search.js'
 import { useTranslation } from '../../../hooks/useTranslation.js'
 import { ACTION } from '../../../state/documentSession/documentReducer.js'
@@ -19,25 +20,37 @@ function isComplex(element) {
 }
 
 function newElementFor(type) {
-  // Everything created here is labelled "manual" (typed by a person).
+  // Everything created here is labelled "manual" (typed by a person); the label stays internal (decision 49).
   return createElement(type, {
     source: { kind: 'manual' },
     ...(type === 'table' ? { content: { rows: [['', ''], ['', '']] } } : {}),
   })
 }
 
-// The single structured editor of the current page: every element of the page in
-// reading order. All changes go through `dispatch` (the session -> Phase 1 reducer).
+// The editor of the current page. It edits the page's elements; with `types` it shows only the elements of
+// those types (one tab of the review: texts, tables or fields) while the page keeps ONE reading order: every
+// position given to the session is a position in the WHOLE page, so editing inside a tab never disturbs the
+// other tabs' content (unclassified content stays on the page and in the JSON). All changes go through
+// `dispatch` (the session -> Phase 1 reducer).
 //
-// Props: { pageNumber, elements, query, disabled, dispatch(action), setPending(key, flag, commitNow) }
-export function StructuredEditor({ pageNumber, elements, query, disabled, dispatch, setPending }) {
+// Props: { pageNumber, elements, types (null = every type), query, disabled, dispatch(action),
+//          setPending(key, flag, commitNow), onActivate(element | null) }
+export function StructuredEditor({ pageNumber, elements, types = null, query, disabled, dispatch, setPending, onActivate }) {
   const { t, formatNumber } = useTranslation()
   const listRef = useRef(null)
   const [failure, setFailure] = useState(null)
   const [pendingConfirm, setPendingConfirm] = useState(null)
-  const [drag, setDrag] = useState(null) // { from, over, position }
+  const [drag, setDrag] = useState(null) // { from, over, position } — positions among the SHOWN elements
   const focusRequest = useRef(null) // id of an element just added, to move focus into
   const search = useMemo(() => searchPageElements(elements, query), [elements, query])
+
+  // The shown elements with their position in the whole page.
+  const entries = useMemo(
+    () => elements.map((element, fullIndex) => ({ element, fullIndex })).filter(({ element }) => types === null || types.includes(element.type)),
+    [elements, types],
+  )
+  const addTypes = types ?? ELEMENT_TYPE_LIST
+  const endIndex = entries.length > 0 ? entries.at(-1).fullIndex + 1 : elements.length
 
   // Every action shows its refusal (if any) instead of failing silently.
   const ctx = useMemo(
@@ -46,13 +59,14 @@ export function StructuredEditor({ pageNumber, elements, query, disabled, dispat
       disabled,
       setPending,
       confirm: setPendingConfirm,
+      onActivate,
       dispatch(action) {
         const result = dispatch({ pageNumber, ...action })
         setFailure(result.ok ? null : result)
         return result
       },
     }),
-    [pageNumber, disabled, setPending, dispatch],
+    [pageNumber, disabled, setPending, dispatch, onActivate],
   )
 
   // After adding an element, move focus into it.
@@ -66,14 +80,16 @@ export function StructuredEditor({ pageNumber, elements, query, disabled, dispat
     card.querySelector('input:not([readonly]), textarea:not([readonly])')?.focus()
   }, [elements])
 
-  function addElement(type, index) {
+  function addElement(type, fullIndex) {
     const element = newElementFor(type)
-    const result = ctx.dispatch({ type: ACTION.elementAdded, element, index })
+    const result = ctx.dispatch({ type: ACTION.elementAdded, element, index: fullIndex })
     if (result.ok) focusRequest.current = element.id
   }
 
-  function move(element, toIndex) {
-    ctx.dispatch({ type: ACTION.elementMoved, elementId: element.id, toIndex })
+  // `shownTarget` is a position among the shown elements.
+  function move(element, shownTarget) {
+    const target = entries[shownTarget]
+    if (target) ctx.dispatch({ type: ACTION.elementMoved, elementId: element.id, toIndex: target.fullIndex })
   }
 
   function remove(element) {
@@ -145,11 +161,13 @@ export function StructuredEditor({ pageNumber, elements, query, disabled, dispat
     onDrop(event) {
       if (!drag || drag.over === null) return
       event.preventDefault()
-      // moveElement takes the final index of the dragged element.
-      let target = drag.position === 'before' ? drag.over : drag.over + 1
-      if (drag.from < target) target -= 1
+      const dragged = entries[drag.from]
+      const over = entries[drag.over]
+      // moveElement takes the final index of the dragged element, in the whole page.
+      let target = drag.position === 'before' ? over.fullIndex : over.fullIndex + 1
+      if (dragged.fullIndex < target) target -= 1
       setDrag(null)
-      if (target !== drag.from) move(elements[drag.from], target)
+      if (target !== dragged.fullIndex) ctx.dispatch({ type: ACTION.elementMoved, elementId: dragged.element.id, toIndex: target })
     },
     onDragEnd() {
       setDrag(null)
@@ -173,15 +191,15 @@ export function StructuredEditor({ pageNumber, elements, query, disabled, dispat
       )}
 
       <ol className="element-list" ref={listRef} aria-label={t('review.editor.listLabel')}>
-        {elements.length === 0 && !disabled && <InsertPoint index={0} count={0} onAdd={addElement} isProminent />}
-        {elements.length === 0 && disabled && <li className="editor-empty">{t('review.editor.empty')}</li>}
-        {elements.map((element, index) => (
+        {entries.length === 0 && !disabled && <InsertPoint index={0} count={0} types={addTypes} onAdd={(type) => addElement(type, endIndex)} isProminent />}
+        {entries.length === 0 && disabled && <li className="editor-empty">{t('review.editor.empty')}</li>}
+        {entries.map(({ element, fullIndex }, index) => (
           <Fragment key={element.id}>
-            {!disabled && <InsertPoint index={index} count={elements.length} onAdd={addElement} />}
+            {!disabled && <InsertPoint index={index} count={entries.length} types={addTypes} onAdd={(type) => addElement(type, fullIndex)} />}
             <ElementCard
               element={element}
               index={index}
-              count={elements.length}
+              count={entries.length}
               ctx={ctx}
               matches={search.byElement[element.id]?.fields ?? {}}
               isMatch={search.matchedElementIds.has(element.id)}
@@ -193,7 +211,7 @@ export function StructuredEditor({ pageNumber, elements, query, disabled, dispat
             />
           </Fragment>
         ))}
-        {elements.length > 0 && !disabled && <InsertPoint index={elements.length} count={elements.length} onAdd={addElement} />}
+        {entries.length > 0 && !disabled && <InsertPoint index={entries.length} count={entries.length} types={addTypes} onAdd={(type) => addElement(type, endIndex)} />}
       </ol>
 
       <ConfirmDialog

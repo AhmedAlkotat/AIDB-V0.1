@@ -2,6 +2,7 @@
 // of production bundles. Admin-only, like the server must be (decisions 42-44). The documents it
 // moves are those of the temporary in-memory store; nothing is really deleted from a disk.
 
+import { isBeingProcessed } from '../domain/document/lifecycle.js'
 import { getDaysRemaining, getPurgeAt, isExpired } from '../domain/recycleBin/recycleBin.js'
 import { normalizeSettings } from '../domain/settings/settings.js'
 import { SYSTEM_ERROR, SystemError } from '../services/systemErrors.js'
@@ -51,7 +52,9 @@ export function createMockRecycleBinService({ context = getMockContext() } = {})
       ctx.run(ctx.requireAdmin, (actor) => {
         const item = ctx.documents.list().find((candidate) => candidate.id === id)
         if (!item) throw new SystemError(SYSTEM_ERROR.notFound)
-        const cancelledProcessing = item.processingCount > 0
+        // A document the queue still owes work to (waiting or running) is stopped safely; whatever was
+        // completed stays in its record and no other document is touched (decision 45).
+        const cancelledProcessing = item.processingCount > 0 || isBeingProcessed(item.state)
         guard(() => ctx.documents.moveToTrash(id, { by: actor.id }))
         return { cancelledProcessing }
       }),

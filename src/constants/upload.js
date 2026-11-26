@@ -1,17 +1,9 @@
 // Upload rules for the Upload Document page. Kept in one place so the backend
 // integration (later phase) can share or replace them.
 
-const DEFAULT_MAX_UPLOAD_SIZE_MB = 10
-
-// The limit can be overridden at build time with VITE_MAX_UPLOAD_SIZE_MB
-// (e.g. in a .env.local file). Invalid or missing values fall back to 10 MB.
-function readMaxUploadSizeMb() {
-  const configured = Number(import.meta.env.VITE_MAX_UPLOAD_SIZE_MB)
-  return Number.isFinite(configured) && configured > 0 ? configured : DEFAULT_MAX_UPLOAD_SIZE_MB
-}
-
-export const MAX_UPLOAD_SIZE_MB = readMaxUploadSizeMb()
-export const MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
+// NOTE: the maximum file size and the maximum number of selected pages are NOT constants: the Admin
+// sets them (decisions 36 and 48) and the screens read them from the system settings service
+// (hooks/useUploadLimits.js, utils/uploadLimits.js).
 
 // One document per upload operation in this phase.
 export const MAX_FILES_PER_UPLOAD = 1

@@ -43,6 +43,9 @@ await runChecks('Production build has no mock authentication', async ({ browser,
 
   const bundle = await page.eval(`fetch(document.querySelector('script[type=module]').src).then((r) => r.text())`)
   check('the entry bundle contains no mock accounts or passwords', !/employee-dev|admin-dev|disabled-dev|aidp\.dev\.mockSession|aidp\.dev\.mockAccounts|aidp\.dev\.mockSystem|bkp-seed|aud-seed|ntf-seed/.test(bundle))
+  // Batch D: the simulated document workflow (queue, lock, approval, export, templates, demonstration documents).
+  check('the entry bundle contains no simulated document workflow: no mock queue, lock, export or template data', !/sim-other-editor|tpl-demo|simulateOtherEditor|releaseOtherEditor|failNextDocument|setInsufficientSpace|failNextExport|createMockProcessingQueue|createMockDocumentWorkflowService/.test(bundle))
+  check('the entry bundle contains no demonstration documents', !/demo-review-8-pages|demo-approved-3-pages|مستند تجريبي للمراجعة|AIDP DEMO/.test(bundle))
 
   // A forged development account store must not create accounts either.
   await page.eval(`(() => { const el = document.querySelector('#login-identifier'); el.focus(); el.select() })()`)

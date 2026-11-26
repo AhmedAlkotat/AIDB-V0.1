@@ -5,6 +5,8 @@ import { StatCard } from '../components/common/StatCard.jsx'
 import { EmployeeSummary } from '../components/dashboard/EmployeeSummary.jsx'
 import { DocumentListItem } from '../components/review/DocumentListItem.jsx'
 import { USER_ROLES } from '../constants/roles.js'
+import { DocumentStateBadge } from '../components/documents/DocumentStateBadge.jsx'
+import { DOCUMENT_STATE_LIST } from '../domain/document/lifecycle.js'
 import { selectVisibleDocuments } from '../domain/document/access.js'
 import { getDocumentStats, getRecentDocuments } from '../domain/dashboard/stats.js'
 import { useCurrentUser } from '../hooks/useCurrentUser.js'
@@ -57,6 +59,13 @@ export default function DashboardPage() {
           <StatCard label={t('dashboard.documents.approved')} value={formatNumber(stats.approved)} icon="checkCircle" tone="teal" />
           <StatCard label={t('dashboard.documents.needsCorrection')} value={formatNumber(stats.needsCorrection)} icon="fileWarning" tone="warning" />
         </div>
+        <ul className="state-counts" aria-label={t('dashboard.documents.byState')}>
+          {DOCUMENT_STATE_LIST.map((state) => (
+            <li key={state} data-state={state}>
+              <DocumentStateBadge state={state} /> <strong>{formatNumber(stats.byState[state])}</strong>
+            </li>
+          ))}
+        </ul>
         {!documentStore.isDurable && (
           <p className="demo-note">
             <Icon name="info" size={18} />

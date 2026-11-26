@@ -41,6 +41,10 @@ export function createMockNotificationService({ context = getMockContext() } = {
 
     list: () => ctx.run(ctx.requireUser, (user) => visibleTo(user).map((notification) => toView(user, notification))),
 
+    // Told when a notification is added (a finished or failed processing, an alert), so the bell does not
+    // have to wait for its next refresh. The real service would push the same event.
+    subscribe: (listener) => ctx.onNotify(listener),
+
     markRead: (id) =>
       ctx.run(ctx.requireUser, (user) => {
         const target = ctx.system.read().notifications.find((notification) => notification.id === id)

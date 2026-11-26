@@ -295,6 +295,33 @@ const ICONS = {
       <path d="M3 18h.01" />
     </>
   ),
+  download: (
+    <>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <path d="M7 10l5 5 5-5" />
+      <path d="M12 15V3" />
+    </>
+  ),
+  history: (
+    <>
+      <path d="M3 12a9 9 0 1 0 3-6.7" />
+      <path d="M3 4v5h5" />
+      <path d="M12 7v5l3 2" />
+    </>
+  ),
+  save: (
+    <>
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+      <path d="M17 21v-8H7v8" />
+      <path d="M7 3v5h8" />
+    </>
+  ),
+  mapPin: (
+    <>
+      <path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0z" />
+      <circle cx="12" cy="10" r="3" />
+    </>
+  ),
 }
 
 export function Icon({ name, size = 20, className = '', ...rest }) {

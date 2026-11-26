@@ -6,7 +6,7 @@
 import { mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { BASE_URL, runChecks, setLanguage } from './harness.mjs'
+import { BASE_URL, openUploadedReview, runChecks, setLanguage, startProcessing } from './harness.mjs'
 import { sleep } from './cdp.mjs'
 import { writeTestPng } from './png.mjs'
 
@@ -21,8 +21,8 @@ async function openImageReview(page, file, language) {
   await page.goto(`${BASE_URL}/upload`)
   await setLanguage(page, language)
   await page.setFiles('input[type=file]', [file])
-  await page.waitFor(`document.querySelector('.upload-actions__start.button--secondary:not([disabled])')`, { timeout: 15000 })
-  await page.click('.upload-actions__start.button--secondary')
+  await startProcessing(page)
+  await openUploadedReview(page, file.split(/[\\/]/).pop())
   await page.waitFor(`document.querySelector('.original-viewer img') && document.querySelector('.original-viewer img').complete && document.querySelector('.original-viewer img').naturalWidth > 0`)
   await sleep(400)
 }

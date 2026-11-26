@@ -56,11 +56,22 @@ describe('save status', () => {
     assert.match(await show('failed'), /فشل الحفظ/)
   })
 
-  test('is a live status region and has no manual save button', async () => {
+  test('is a live status region; a "Save draft" button exists only when a handler is given (decision 13)', async () => {
     const html = await show('unsaved')
     assert.match(html, /role="status"/)
     assert.match(html, /aria-live="polite"/)
     assert.doesNotMatch(html, /<button/)
+    const withDraft = await render('/src/components/review/SaveStatusIndicator.jsx', 'SaveStatusIndicator', { status: 'unsaved', isTemporary: false, onRetry: noop, onSaveDraft: noop })
+    assert.match(withDraft, /<button[^>]*class="button button--secondary button--sm save-status__draft"/)
+    assert.match(withDraft, /حفظ المسودة/)
+    assert.match(withDraft, /الحفظ لا يعني الاعتماد/) // saving is not approval
+  })
+
+  test('shows when the last save happened, only while everything is saved', async () => {
+    const saved = await render('/src/components/review/SaveStatusIndicator.jsx', 'SaveStatusIndicator', { status: 'saved', isTemporary: false, lastSavedAt: '2026-06-01T10:00:00.000Z', onRetry: noop })
+    assert.match(saved, /آخر حفظ/)
+    const failed = await render('/src/components/review/SaveStatusIndicator.jsx', 'SaveStatusIndicator', { status: 'failed', isTemporary: false, lastSavedAt: '2026-06-01T10:00:00.000Z', onRetry: noop })
+    assert.doesNotMatch(failed, /آخر حفظ/)
   })
 
   test('says plainly that the storage is temporary and not a server', async () => {
@@ -252,15 +263,18 @@ describe('structured editor', () => {
     assert.match(html, /<textarea[^>]*dir="auto"/)
   })
 
-  test('labels who wrote each element: manual, mock AI, or AI', async () => {
+  test('shows NO AI / AI Edited / Manual source labels (decision 49); the source stays in the data', async () => {
     const editor = makeEditor()
     const g = editor.generateId
     const mock = createCanonicalElement('paragraph', { content: { text: 'ا' }, source: { kind: 'ai', details: { mock: true } } }, { generateId: g })
     const ai = createCanonicalElement('paragraph', { content: { text: 'ب' }, source: { kind: 'ai', details: {} } }, { generateId: g })
-    const html = await editorHtml([paragraph(g, 'ج'), mock, ai])
-    assert.match(html, /أُضيف يدويًا/)
-    assert.match(html, /مستخرج \(تجريبي\)/)
-    assert.match(html, /مستخرج بالذكاء الاصطناعي/)
+    const manual = paragraph(g, 'ج')
+    const html = await editorHtml([manual, mock, ai])
+    assert.doesNotMatch(html, /أُضيف يدويًا|مستخرج \(تجريبي\)|مستخرج بالذكاء الاصطناعي/)
+    assert.doesNotMatch(html, /Added manually|Extracted by AI|Extracted \(demo\)/)
+    assert.equal(manual.source.kind, 'manual')
+    assert.equal(mock.source.details.mock, true)
+    assert.equal(ai.source.kind, 'ai')
   })
 
   test('offers editing tools: type, move up/down, delete, drag handle and insert points', async () => {
@@ -377,8 +391,9 @@ describe('header and progress', () => {
       editor.dispatch({ type: ACTION.pageReviewConfirmed, pageNumber, at: NOW })
     }
     const html = decode(await render('/src/components/review/ReviewHeader.jsx', 'ReviewHeader', {
-      name: 'تقرير.pdf', document: editor.state.document, currentPage: 2, usesMockProcessing: true, isApproved: false, saveStatus: 'saved', isTemporaryStorage: true, onRetrySave: noop,
+      name: 'تقرير.pdf', document: editor.state.document, currentPage: 2, usesMockProcessing: true, state: 'readyForReview', saveStatus: 'saved', isTemporaryStorage: true, onRetrySave: noop,
     }))
+    assert.match(html, /جاهز للمراجعة/) // the document state (decision 12)
     assert.match(html, /تقرير\.pdf/)
     assert.match(html, /role="progressbar"/)
     assert.match(html, /aria-valuenow="2"/)
@@ -389,13 +404,16 @@ describe('header and progress', () => {
     assert.match(html, /تم حفظ جميع التعديلات/)
   })
 
-  test('marks an approved document', async () => {
+  test('marks an approved document with its state badge, and says whether the layout is known or new', async () => {
     const editor = makeEditor()
-    const html = await render('/src/components/review/ReviewHeader.jsx', 'ReviewHeader', {
-      name: 'م', document: editor.state.document, currentPage: 1, usesMockProcessing: false, isApproved: true, saveStatus: 'saved', isTemporaryStorage: true, onRetrySave: noop,
-    })
-    assert.match(html, /معتمد \(تجريبي\)/)
+    const base = { name: 'م', document: editor.state.document, currentPage: 1, usesMockProcessing: false, state: 'approved', saveStatus: 'saved', isTemporaryStorage: true, onRetrySave: noop }
+    const html = await render('/src/components/review/ReviewHeader.jsx', 'ReviewHeader', base)
+    assert.match(html, /badge--success">معتمد</)
     assert.doesNotMatch(html, /بيانات تجريبية/)
+    assert.match(html, /data-layout="new"/) // an unknown layout is fine: it is simply "new"
+    const known = await render('/src/components/review/ReviewHeader.jsx', 'ReviewHeader', { ...base, template: { id: 't', name: 'فاتورة' }, isNewVersion: true })
+    assert.match(known, /data-layout="known"/)
+    assert.match(known, /إصدار جديد قيد التحرير/)
   })
 })
 
@@ -418,10 +436,20 @@ describe('approval panel', () => {
     assert.match(html, /اعتماد المستند بالكامل/)
   })
 
-  test('even an eligible document says real approval needs a backend', async () => {
+  test('an eligible document can be approved; the panel says approval is simulated here and that saving is not approval', async () => {
     const html = await panel({ eligible: true })
     assert.doesNotMatch(approveButton(html), /disabled/)
-    assert.match(html, /خدمة خلفية/)
+    assert.match(html, /محاكاة/)
+    assert.match(html, /الحفظ ليس اعتمادًا/)
+  })
+
+  test('approving the whole document is explicit: the button only opens a confirmation, and the lock is a condition', async () => {
+    const html = await panel({ eligible: true, blockers: ['editLock'] })
+    assert.match(html, /data-condition="lock"/)
+    assert.match(html, /قفل التحرير/)
+    // the button does not approve by itself: it opens one of the two (closed) confirmation dialogs
+    assert.equal((html.match(/<dialog/g) ?? []).length, 2)
+    assert.doesNotMatch(html, /اعتماد المستند بالكامل؟/) // nothing about the confirmation is shown until the user asks to approve
   })
 
   test('an approved document is read-only: employees get the admin-only note and no new-version button', async () => {

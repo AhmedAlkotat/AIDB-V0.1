@@ -3,6 +3,7 @@
 //   list()          -> Promise<Notification[]>   already limited to what the caller may see
 //   markRead(id)    -> Promise<void>
 //   markAllRead()   -> Promise<void>
+//   subscribe(listener) -> unsubscribe   OPTIONAL: told when a notification arrives (the shell refreshes at once)
 //
 // REPLACEABLE: screens only know this interface (every method rejects with a SystemError, see
 // systemErrors.js). NOT CONNECTED TO A BACKEND YET: endpoint names and schemas are not agreed

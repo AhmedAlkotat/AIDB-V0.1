@@ -10,7 +10,7 @@
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { BASE_URL, openReview, runChecks, setLanguage, setSidebarOpen } from './harness.mjs'
+import { BASE_URL, openReview, openUploadedReview, runChecks, setLanguage, setSidebarOpen, startProcessing } from './harness.mjs'
 import { sleep } from './cdp.mjs'
 import { makeArabicPdf, makeArabicPdfs } from './make-arabic-pdfs.mjs'
 
@@ -28,9 +28,8 @@ async function uploadAndReview(page, file, language = 'ar', { waitFor = `documen
   await page.goto(`${BASE_URL}/upload`)
   await setLanguage(page, language)
   await page.setFiles('input[type=file]', [file])
-  await page.waitFor(`document.querySelector('.upload-actions__start.button--secondary:not([disabled])')`, { timeout: 20000 })
-  await page.click('.upload-actions__start.button--secondary')
-  await page.waitFor(`location.pathname.includes('/corrections/review/')`)
+  await startProcessing(page)
+  await openUploadedReview(page, file.split(/[\\/]/).pop())
   await page.waitFor(waitFor, { timeout: 20000 })
   await sleep(1500)
 }
@@ -94,7 +93,8 @@ await runChecks('UAT fixes (UAT-01 … UAT-05)', async ({ browser, check }) => {
     await page.waitFor(`document.querySelector('.original-viewer img')?.complete && document.querySelector('.original-viewer img').naturalWidth > 0`, { timeout: 15000 })
     check(`UAT-01 ${file}: opening it from the queue shows the image again`, true)
     await goTo(page, '/archive')
-    check(`UAT-01 ${file}: a pending image is not in the archive`, !(await names(page)).some((q) => q.includes(file)))
+    // Decision 12: the archive lists every state except Pending; the image finished processing, so it is listed (not approved).
+    check(`UAT-01 ${file}: a processed, not yet approved image is in the archive as Ready for Review (decision 12)`, await page.eval(`[...document.querySelectorAll('.queue-item')].some((li) => li.textContent.includes(${JSON.stringify(file)}) && li.dataset.state === 'readyForReview')`))
   }
   }
 
@@ -260,9 +260,11 @@ await runChecks('UAT fixes (UAT-01 … UAT-05)', async ({ browser, check }) => {
       await openReview(page, { width: w, height: h, language })
       await setSidebarOpen(page, true)
       await page.waitFor(`document.querySelectorAll('.element-card').length >= 3`, { timeout: 15000 })
+      await page.eval(`document.querySelector('[data-tab="tables"]').click()`) // tables have their own tab (decision 4)
+      await page.waitFor(`document.querySelector('.insert-point__button')`)
       await page.click('.insert-point__button')
       await page.waitFor(`document.querySelector('.insert-point__menu')`)
-      await page.eval(`document.querySelectorAll('.insert-point__menu .button--secondary')[2].click()`) // table
+      await page.eval(`document.querySelector('.insert-point__menu .button--secondary').click()`) // table (the only type of this tab)
       await page.waitFor(`document.querySelector('.element-card .table-editor')`)
       await sleep(300)
       const geometry = () => page.eval(`(() => {
@@ -293,11 +295,11 @@ await runChecks('UAT fixes (UAT-01 … UAT-05)', async ({ browser, check }) => {
       await sleep(300)
       g = await geometry()
       check(`${label}: adding a row works (${g.rows} rows)`, g.rows === 3)
-      await page.eval(`document.querySelector('.json-preview__toggle').click()`)
+      await page.eval(`document.querySelector('[data-tab="json"]').click()`) // the JSON tab
       await page.waitFor(`document.querySelector('.json-preview__code')`)
       const json = await page.eval(`(() => { const find = (o) => { if (o && typeof o === 'object') { if (o.type === 'table') return o; for (const v of Object.values(o)) { const r = find(v); if (r) return r } } return null }; const t = find(JSON.parse(document.querySelector('.json-preview__code').textContent)); return { rows: t.content.rows.length, cols: t.content.rows[0].cells.length, first: t.content.rows[0].cells[0].text } })()`)
       check(`${label}: the JSON matches the table on screen (${json.rows}x${json.cols}, first cell "${json.first}")`, json.rows === g.rows && json.cols === g.cols && json.first === 'خلية ١', JSON.stringify(json))
-      await page.eval(`document.querySelector('.json-preview__toggle').click()`)
+      await page.eval(`document.querySelector('[data-tab="tables"]').click()`)
       await page.eval(`document.querySelector('.editor-toolbar__history button').click()`) // undo (the row)
       await sleep(300)
       g = await geometry()

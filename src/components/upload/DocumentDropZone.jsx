@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { FILE_INPUT_ACCEPT, MAX_UPLOAD_SIZE_BYTES, SUPPORTED_FORMAT_NAMES } from '../../constants/upload.js'
+import { FILE_INPUT_ACCEPT, SUPPORTED_FORMAT_NAMES } from '../../constants/upload.js'
 import { useFileSizeFormatter } from '../../hooks/useFileSizeFormatter.js'
 import { useTranslation } from '../../hooks/useTranslation.js'
 import { Icon } from '../common/Icon.jsx'
@@ -14,7 +14,8 @@ function isFileDrag(event) {
 // "Replace") and move focus back here after the file is removed.
 // `compact` renders a slim "drop here to replace" strip without the browse
 // button (used once a document is selected; the panel has a Replace button).
-export function DocumentDropZone({ inputRef, browseButtonRef, compact = false, onFilesSelected }) {
+// `maxFileSizeBytes` is the Admin's limit (decision 36), shown in the hint when it is known.
+export function DocumentDropZone({ inputRef, browseButtonRef, compact = false, maxFileSizeBytes = null, onFilesSelected }) {
   const { t } = useTranslation()
   const formatFileSize = useFileSizeFormatter()
   const [isDragActive, setIsDragActive] = useState(false)
@@ -109,10 +110,9 @@ export function DocumentDropZone({ inputRef, browseButtonRef, compact = false, o
           </button>
         )}
         <p id={hintId} className="dropzone__hint">
-          {t('upload.dropzone.hint', {
-            formats: SUPPORTED_FORMAT_NAMES.join(t('upload.listSeparator')),
-            max: formatFileSize(MAX_UPLOAD_SIZE_BYTES),
-          })}
+          {Number.isFinite(maxFileSizeBytes)
+            ? t('upload.dropzone.hint', { formats: SUPPORTED_FORMAT_NAMES.join(t('upload.listSeparator')), max: formatFileSize(maxFileSizeBytes) })
+            : t('upload.dropzone.hintNoLimit', { formats: SUPPORTED_FORMAT_NAMES.join(t('upload.listSeparator')) })}
           {!compact && (
             <>
               <br />

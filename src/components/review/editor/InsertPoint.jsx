@@ -14,7 +14,8 @@ import { Icon } from '../../common/Icon.jsx'
 //   into the new element);
 // - every trigger has a name that says WHERE the element would be added, because
 //   a page can have many identical "add an element here" buttons.
-export function InsertPoint({ index, count = 0, onAdd, isProminent = false }) {
+// `types` limits the menu to the element types of the current tab (default: every type).
+export function InsertPoint({ index, count = 0, onAdd, isProminent = false, types = ELEMENT_TYPE_LIST }) {
   const { t, formatNumber } = useTranslation()
   const [isOpen, setIsOpen] = useState(false)
   const menuId = useId()
@@ -72,7 +73,7 @@ export function InsertPoint({ index, count = 0, onAdd, isProminent = false }) {
       </button>
       {isOpen && (
         <div id={menuId} className="insert-point__menu" role="group" aria-label={`${t('review.insert.chooseType')} — ${label}`}>
-          {ELEMENT_TYPE_LIST.map((type, position) => (
+          {types.map((type, position) => (
             <button
               key={type}
               ref={position === 0 ? firstItemRef : undefined}

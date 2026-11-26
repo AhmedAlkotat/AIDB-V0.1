@@ -1,4 +1,4 @@
-import { ACCEPTED_DOCUMENT_TYPES, MAX_UPLOAD_SIZE_BYTES } from '../constants/upload.js'
+import { ACCEPTED_DOCUMENT_TYPES } from '../constants/upload.js'
 
 // Validation error codes. The UI maps each code to a translated message.
 export const FILE_ERROR = Object.freeze({
@@ -25,12 +25,14 @@ export function findDocumentType(file) {
 }
 
 // Validates a single document. Returns { valid: true, type } or
-// { valid: false, error } where `error` is one of FILE_ERROR.
-export function validateDocumentFile(file, maxSizeBytes = MAX_UPLOAD_SIZE_BYTES) {
+// { valid: false, error } where `error` is one of FILE_ERROR. `maxSizeBytes` is the Admin's
+// limit (decision 36), read from the settings service by the caller; there is no built-in
+// default, so without a limit only the type and the emptiness are checked.
+export function validateDocumentFile(file, maxSizeBytes) {
   const type = findDocumentType(file)
   if (!type) return { valid: false, error: FILE_ERROR.unsupportedType }
   if (file.size === 0) return { valid: false, error: FILE_ERROR.empty }
-  if (file.size > maxSizeBytes) return { valid: false, error: FILE_ERROR.tooLarge }
+  if (Number.isFinite(maxSizeBytes) && file.size > maxSizeBytes) return { valid: false, error: FILE_ERROR.tooLarge }
   return { valid: true, type }
 }
 

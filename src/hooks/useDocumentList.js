@@ -7,7 +7,8 @@ import { documentStore } from '../services/documentStore.js'
 // for the queue/archive is done with domain/document/access.js.
 export function useDocumentList() {
   const [items, setItems] = useState(() => {
-    seedDemoReviewDocuments(documentStore)
+    // The demonstration documents are mock data: development builds only.
+    if (import.meta.env?.DEV) seedDemoReviewDocuments(documentStore)
     return documentStore.list()
   })
   useEffect(() => documentStore.subscribe(() => setItems(documentStore.list())), [])

@@ -20,7 +20,7 @@ import { makeSnapshot } from './sessionHelpers.js'
 const employee = (id) => ({ id, role: 'employee' })
 const admin = { id: 'boss', role: 'orgAdmin' }
 
-const summary = (id, ownerId, approvalStatus = 'none') => ({ id, ownerId, approvalStatus })
+const summary = (id, ownerId, approvalStatus = 'none', state) => ({ id, ownerId, approvalStatus, ...(state ? { state } : {}) })
 const ids = (items) => items.map((item) => item.id)
 
 describe('who may see a document (simulated)', () => {
@@ -42,32 +42,41 @@ describe('who may see a document (simulated)', () => {
   })
 })
 
-describe('correction queue and archive', () => {
+describe('correction queue and archive (decision 12: the archive lists every state except Pending)', () => {
   const items = [
-    summary('mine-pending', 'a'),
-    summary('mine-approved', 'a', 'approved'),
-    summary('theirs-pending', 'b'),
-    summary('theirs-approved', 'b', 'approved'),
-    summary('orphan-pending', null),
+    summary('mine-review', 'a', 'none', 'readyForReview'),
+    summary('mine-approved', 'a', 'approved', 'approved'),
+    summary('mine-pending', 'a', 'none', 'pending'),
+    summary('theirs-failed', 'b', 'none', 'failed'),
+    summary('theirs-approved', 'b', 'approved', 'approved'),
+    summary('orphan-processing', null, 'none', 'processing'),
   ]
 
-  test('an employee sees only their own documents, split into queue (pending) and archive (approved)', () => {
-    assert.deepEqual(ids(selectVisibleDocuments(items, employee('a'))), ['mine-pending', 'mine-approved'])
-    assert.deepEqual(ids(selectCorrectionQueue(items, employee('a'))), ['mine-pending'])
-    assert.deepEqual(ids(selectArchive(items, employee('a'))), ['mine-approved'])
+  test('an employee sees only their own documents: not-approved ones in the queue, all but Pending in the archive', () => {
+    assert.deepEqual(ids(selectVisibleDocuments(items, employee('a'))), ['mine-review', 'mine-approved', 'mine-pending'])
+    assert.deepEqual(ids(selectCorrectionQueue(items, employee('a'))), ['mine-review', 'mine-pending'])
+    assert.deepEqual(ids(selectArchive(items, employee('a'))), ['mine-review', 'mine-approved'])
   })
 
   test('an administrator sees all documents in both lists', () => {
-    assert.deepEqual(ids(selectCorrectionQueue(items, admin)), ['mine-pending', 'theirs-pending', 'orphan-pending'])
-    assert.deepEqual(ids(selectArchive(items, admin)), ['mine-approved', 'theirs-approved'])
+    assert.deepEqual(ids(selectCorrectionQueue(items, admin)), ['mine-review', 'mine-pending', 'theirs-failed', 'orphan-processing'])
+    assert.deepEqual(ids(selectArchive(items, admin)), ['mine-review', 'mine-approved', 'theirs-failed', 'theirs-approved', 'orphan-processing'])
   })
 
-  test('a pending document NEVER appears in the archive, and an approved one never in the queue', () => {
+  test('a Pending document NEVER appears in the archive, every other state does, and an approved one is never in the queue', () => {
     for (const user of [employee('a'), employee('b'), admin]) {
-      assert.ok(selectArchive(items, user).every((item) => item.approvalStatus === 'approved'))
+      assert.ok(selectArchive(items, user).every((item) => item.state !== 'pending'))
       assert.ok(selectCorrectionQueue(items, user).every((item) => item.approvalStatus !== 'approved'))
-      assert.equal(selectArchive(items, user).some((item) => selectCorrectionQueue(items, user).includes(item)), false)
     }
+    // every approved lifecycle state except Pending is listed for the Admin
+    const states = ['processing', 'readyForReview', 'failed', 'manualEditing', 'approved'].map((state) => summary(state, 'a', state === 'approved' ? 'approved' : 'none', state))
+    assert.deepEqual(ids(selectArchive(states, admin)), ['processing', 'readyForReview', 'failed', 'manualEditing', 'approved'])
+  })
+
+  test('summaries without a state (older callers) count as waiting for review, or approved', () => {
+    const legacy = [summary('old-none', 'a'), summary('old-approved', 'a', 'approved')]
+    assert.deepEqual(ids(selectArchive(legacy, employee('a'))), ['old-none', 'old-approved'])
+    assert.deepEqual(ids(selectCorrectionQueue(legacy, employee('a'))), ['old-none'])
   })
 
   test('a user with no documents gets empty lists', () => {
@@ -80,10 +89,11 @@ describe('correction queue and archive', () => {
     const id = store.create({ name: 'x', snapshot: makeSnapshot(), ownerId: 'a' })
     const user = employee('a')
     assert.deepEqual(ids(selectCorrectionQueue(store.list(), user)), [id])
-    assert.deepEqual(selectArchive(store.list(), user), [])
+    assert.deepEqual(ids(selectArchive(store.list(), user)), [id]) // Ready for Review is archived too (decision 12)
     await store.setApprovalStatus(id, 'approved')
     assert.deepEqual(selectCorrectionQueue(store.list(), user), [])
     assert.deepEqual(ids(selectArchive(store.list(), user)), [id])
+    assert.equal(store.list()[0].state, 'approved')
   })
 })
 
@@ -98,24 +108,25 @@ describe('owners are recorded where documents are created', () => {
     assert.deepEqual(byId, { [owned]: 'a', [unowned]: null })
   })
 
-  test('a document opened for review from the upload page belongs to its uploader and starts pending', () => {
+  test('a document registered from the upload page belongs to its uploader and starts Pending (not in the archive yet)', () => {
     const store = createMemoryDocumentStore()
     const file = new File(['%PDF-1.4'], 'scan.pdf', { type: 'application/pdf' })
     const request = createProcessingRequest({ file, documentKind: 'pdf', totalPages: 2, mode: 'all', pages: [1, 2] })
-    const id = createReviewDocumentFromRequest(store, request, { ownerId: DEMO_USER.id })
+    const id = createReviewDocumentFromRequest(store, request, { ownerId: DEMO_USER.id, workflow: { phase: 'pending' } })
     const me = { id: DEMO_USER.id, role: 'employee' }
+    assert.equal(store.list()[0].state, 'pending')
     assert.deepEqual(ids(selectCorrectionQueue(store.list(), me)), [id])
     assert.deepEqual(selectArchive(store.list(), me), [])
     assert.deepEqual(selectCorrectionQueue(store.list(), employee('someone-else')), [])
     assert.deepEqual(ids(selectCorrectionQueue(store.list(), admin)), [id])
   })
 
-  test('the demonstration documents belong to the demo user: one pending, one approved (in the archive)', () => {
+  test('the demonstration documents belong to the demo user: one to review, one approved (both archived, decision 12)', () => {
     const store = createMemoryDocumentStore()
     seedDemoReviewDocuments(store)
     const me = { id: DEMO_USER.id, role: DEMO_USER.role }
     assert.deepEqual(ids(selectCorrectionQueue(store.list(), me)), [DEMO_REVIEW_IDS.toReview])
-    assert.deepEqual(ids(selectArchive(store.list(), me)), [DEMO_REVIEW_IDS.approved])
+    assert.deepEqual(ids(selectArchive(store.list(), me)).sort(), [DEMO_REVIEW_IDS.approved, DEMO_REVIEW_IDS.toReview].sort())
   })
 })
 
@@ -169,13 +180,21 @@ describe('the pages show the right documents', () => {
     assert.match(html, /محاكاة في الواجهة فقط/)
   })
 
-  test('the archive lists the approved demo document (read-only) and never a pending one', async () => {
+  test('the archive lists the approved demo document (read-only) AND the one waiting for review (decision 12: every state but Pending)', async () => {
     const html = await renderRoute('/src/pages/DocumentArchivePage.jsx', '/archive')
     assert.match(html, new RegExp(APPROVED_DEMO))
     assert.match(html, /عرض المستند \(للقراءة فقط\)/)
-    assert.doesNotMatch(html, new RegExp(PENDING_DEMO))
+    assert.match(html, new RegExp(PENDING_DEMO)) // Ready for Review is archived too
     assert.match(html, /محاكاة في الواجهة فقط/)
     assert.doesNotMatch(html, /تحت التطوير|under development/i)
+  })
+
+  test('a Pending document is not in the archive page but is in the queue page', async () => {
+    documentStore.create({ id: 'pending-doc', name: 'مستند قيد الانتظار', snapshot: makeSnapshot(), ownerId: DEMO_USER.id, workflow: { phase: 'pending' } })
+    const archive = await renderRoute('/src/pages/DocumentArchivePage.jsx', '/archive')
+    assert.doesNotMatch(archive, /مستند قيد الانتظار/)
+    const queue = await renderRoute('/src/pages/CorrectionQueuePage.jsx', '/corrections')
+    assert.match(queue, /مستند قيد الانتظار/)
   })
 
   test('a document uploaded by someone else is in neither list for an employee', async () => {

@@ -92,6 +92,20 @@ describe('keys used by the source code', () => {
       'systemSettings.backups.weekday.options': ['0', '1', '2', '3', '4', '5', '6'],
       'systemErrors': ['forbidden', 'notFound', 'invalidInput', 'blocked', 'notConnected', 'network', 'unknown'],
       'roles': ['employee', 'orgAdmin'],
+      // Batch D
+      'documents.state': ['pending', 'processing', 'readyForReview', 'failed', 'manualEditing', 'approved'],
+      'documents.types': ['invoice', 'certificate', 'contract', 'administrativeRequest', 'other', 'unclassified'],
+      'documents.failure': ['CANCELLED', 'MOCK_OCR_FAILED', 'PROCESSING_FAILED', 'INVALID_EXTRACTION_RESULT', 'PROCESSING_INTERRUPTED', 'unknown'],
+      'workflow.errors': ['storageFull', 'storageFullTitle', 'insufficientStorage', 'fileTooLarge', 'tooManyPages', 'invalidState', 'notEligible', 'lockHeld', 'lockLost', 'noSuchVersion', 'unknown'],
+      'export.formats': ['docx', 'xlsx', 'pdf', 'json'],
+      'review.tabs': ['texts', 'tables', 'fields', 'json'],
+      'review.tabs.hint': ['texts', 'tables', 'fields'],
+      'review.attempts.status': ['succeeded', 'failed', 'cancelled', 'awaitingDecision', 'accepted', 'rejected'],
+      'review.attempts.trigger': ['upload', 'retry', 'reprocess'],
+      'review.stateBanner': ['failed', 'manualEditing'],
+      'review.approval.notice': ['approved', 'versionCreated', 'notConnected', 'refused', 'forbidden', 'lock', 'notEligible'],
+      'review.lock': ['held', 'checking', 'readOnlyTitle', 'readOnlyText', 'lostTitle', 'lostText', 'availableTitle', 'availableText', 'start'],
+      'upload.actions.blocked': ['readingPdf', 'pdfError', 'pageSelection', 'limitsLoading', 'limitsError', 'fileTooLarge', 'pageLimit', 'storageFull'],
     }
     for (const [group, members] of Object.entries(groups)) {
       for (const language of ['ar', 'en']) {
@@ -101,6 +115,23 @@ describe('keys used by the source code', () => {
         }
       }
     }
+  })
+})
+
+describe('document states', () => {
+  test('every lifecycle state of the domain has a text in both languages (and nothing else is listed)', async () => {
+    const { DOCUMENT_STATE_LIST } = await import('../src/domain/document/lifecycle.js')
+    for (const language of ['ar', 'en']) {
+      assert.deepEqual(Object.keys(lookup(language, 'documents.state')).sort(), [...DOCUMENT_STATE_LIST].sort())
+    }
+  })
+
+  test('the Arabic names of the six states are the approved ones in English too (decision 12)', () => {
+    const english = lookup('en', 'documents.state')
+    assert.deepEqual(
+      [english.pending, english.processing, english.readyForReview, english.failed, english.manualEditing, english.approved],
+      ['Pending', 'Processing', 'Ready for Review', 'Failed', 'Manual Editing', 'Approved'],
+    )
   })
 })
 

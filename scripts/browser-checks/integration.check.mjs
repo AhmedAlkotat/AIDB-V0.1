@@ -5,7 +5,7 @@
 import { mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { BASE_URL, runChecks, setLanguage } from './harness.mjs'
+import { BASE_URL, openUploadedReview, runChecks, setLanguage, startProcessing } from './harness.mjs'
 import { sleep } from './cdp.mjs'
 import { writeTestPng } from './png.mjs'
 
@@ -26,15 +26,15 @@ await runChecks('Integration: upload, queue, review, archive', async ({ browser,
   await page.goto(`${BASE_URL}/upload`)
   await setLanguage(page, 'ar')
 
-  // Upload an image and open it for (mock) review.
+  // Upload an image: "Start processing" registers it, the (simulated) queue processes it in the background,
+  // and the review is opened from the list once it is ready (nothing opens by itself).
   await page.setFiles('input[type=file]', [image])
-  await page.waitFor(`document.querySelector('.upload-actions__start.button--secondary:not([disabled])')`, { timeout: 15000 })
-  await page.click('.upload-actions__start.button--secondary')
-  await page.waitFor(`location.pathname.includes('/corrections/review/')`)
+  await startProcessing(page)
+  await openUploadedReview(page, 'integration-200x100.png')
   await page.waitFor(`document.querySelectorAll('.element-card').length >= 1`, { timeout: 15000 })
   const uploadedPath = await page.eval(`location.pathname`)
   check('the uploaded document opens in the review page', uploadedPath.includes('/corrections/review/'))
-  check('a pending document links back to the correction queue', (await page.eval(`document.querySelector('.review-page > p a')?.getAttribute('href')`)) === '/corrections')
+  check('a document that is not approved links back to the correction queue', (await page.eval(`document.querySelector('.review-page > p a')?.getAttribute('href')`)) === '/corrections')
 
   // It is in the queue, not in the archive.
   await goTo(page, '/corrections')
@@ -43,14 +43,16 @@ await runChecks('Integration: upload, queue, review, archive', async ({ browser,
   check('the queue shows the pending demo document and not the approved one', queue.some((n) => n.includes('للمراجعة')) && !queue.some((n) => n.includes('معتمد')), JSON.stringify(queue))
   check('the queue states that roles and approval are simulated', await page.eval(`document.querySelector('.alert, [role=alert], .alert--info')?.parentElement.textContent.includes('محاكاة في الواجهة فقط') ?? document.body.textContent.includes('محاكاة في الواجهة فقط')`))
 
+  // Decision 12: the archive lists every state EXCEPT Pending. Here nothing is Pending any more (the upload finished
+  // processing), so it lists the approved demo document, the demo document waiting for review and the upload.
   await goTo(page, '/archive')
   const archive = await names(page)
-  check('the archive lists only the approved demo document', archive.length === 1 && archive[0].includes('معتمد'), JSON.stringify(archive))
-  check('no pending document (the upload, the pending demo) is in the archive', !archive.some((n) => n.includes('integration') || n.includes('للمراجعة')))
+  check('the archive lists every document that is not Pending: the approved demo, the demo to review and the upload', archive.length === 3 && archive.some((n) => n.includes('معتمد')) && archive.some((n) => n.includes('للمراجعة')) && archive.some((n) => n.includes('integration')), JSON.stringify(archive))
+  check('every archived document shows its state', (await page.eval(`[...document.querySelectorAll('.queue-item')].every((li) => li.querySelector('.badge--success, .badge--info, .badge--danger, .badge--warning'))`)))
   check('the archive is no longer a placeholder', await page.eval(`!document.querySelector('.placeholder-card')`))
 
   // An approved document opens read-only, and "back" returns to the archive.
-  await page.click('.queue-item a.button--primary')
+  await page.eval(`[...document.querySelectorAll('.queue-item')].find((li) => li.textContent.includes('معتمد')).querySelector('a.button--primary').click()`)
   await page.waitFor(`location.pathname.includes('/corrections/review/')`)
   await page.waitFor(`document.querySelectorAll('.element-card').length >= 1`, { timeout: 15000 })
   check('an approved document opens read-only (no review button, editor locked)', await page.eval(`!document.querySelector('.review-bar .button--primary') || document.querySelector('.review-bar .button--primary').disabled`))

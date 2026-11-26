@@ -7,7 +7,8 @@
 //
 // Rules:
 // - Approval needs: every selected page reviewed, every change saved by the
-//   configured storage, no AI processing underway, and a permitted role.
+//   configured storage, no AI processing underway, a permitted role (an employee: own documents
+//   only; the Admin: any, decision 39) and the document's edit lock (decision 47).
 // - An approved document is immutable for EVERYONE, employees included.
 //   Only an organisation admin may start a new editable version.
 
@@ -27,6 +28,7 @@ export const APPROVAL_BLOCKER = Object.freeze({
   unsavedChanges: 'unsavedChanges',
   processingActive: 'processingActive',
   noPermission: 'noPermission',
+  editLock: 'editLock', // another user is editing (decision 47): the server checks the lock on approval too
 })
 
 export function canRoleApprove(role) {
@@ -47,14 +49,17 @@ export function canCreateNewVersion({ role, approvalStatus }) {
   return isDocumentApproved(approvalStatus) && role === USER_ROLES.orgAdmin
 }
 
-export function getApprovalEligibility({ document, saveStatus, activeProcessingCount = 0, role, approvalStatus }) {
+// `isOwner` / `holdsLock` default to true so callers that do not know them keep the old behaviour.
+// An employee approves only their own documents, the Admin all of them (decision 39).
+export function getApprovalEligibility({ document, saveStatus, activeProcessingCount = 0, role, approvalStatus, isOwner = true, holdsLock = true }) {
   const progress = getReviewProgress(document)
   const blockers = []
   if (isDocumentApproved(approvalStatus)) blockers.push(APPROVAL_BLOCKER.alreadyApproved)
   if (!progress.isComplete) blockers.push(APPROVAL_BLOCKER.pagesNotReviewed)
   if (saveStatus !== SAVE_STATUS.saved) blockers.push(APPROVAL_BLOCKER.unsavedChanges)
   if (activeProcessingCount > 0) blockers.push(APPROVAL_BLOCKER.processingActive)
-  if (!canRoleApprove(role)) blockers.push(APPROVAL_BLOCKER.noPermission)
+  if (!canRoleApprove(role) || (role === USER_ROLES.employee && !isOwner)) blockers.push(APPROVAL_BLOCKER.noPermission)
+  if (!holdsLock) blockers.push(APPROVAL_BLOCKER.editLock)
 
   return {
     eligible: blockers.length === 0,
