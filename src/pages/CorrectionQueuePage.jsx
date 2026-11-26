@@ -4,6 +4,7 @@ import { Icon } from '../components/common/Icon.jsx'
 import { DocumentListItem } from '../components/review/DocumentListItem.jsx'
 import { selectCorrectionQueue } from '../domain/document/access.js'
 import { useCurrentUser } from '../hooks/useCurrentUser.js'
+import { useDocumentDeletion } from '../hooks/useDocumentDeletion.jsx'
 import { useDocumentList } from '../hooks/useDocumentList.js'
 import { useTranslation } from '../hooks/useTranslation.js'
 import { ROUTES } from '../routes/paths.js'
@@ -20,6 +21,7 @@ export default function CorrectionQueuePage() {
   const { t } = useTranslation()
   const user = useCurrentUser()
   const items = selectCorrectionQueue(useDocumentList(), user)
+  const deletion = useDocumentDeletion()
 
   return (
     <div className="page">
@@ -34,6 +36,8 @@ export default function CorrectionQueuePage() {
           <p className="page-intro__description">{t('queue.description')}</p>
         </div>
       </section>
+
+      {deletion.feedback}
 
       <Alert tone="info" title={t('queue.temporaryTitle')}>
         <p>{t('queue.temporaryNote')}</p>
@@ -51,10 +55,11 @@ export default function CorrectionQueuePage() {
       ) : (
         <ul className="queue-list" aria-label={t('queue.listLabel')}>
           {items.map((item) => (
-            <DocumentListItem key={item.id} item={item} />
+            <DocumentListItem key={item.id} item={item} onDelete={deletion.onDelete} />
           ))}
         </ul>
       )}
+      {deletion.dialog}
     </div>
   )
 }

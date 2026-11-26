@@ -3,6 +3,7 @@ import { Icon } from '../components/common/Icon.jsx'
 import { DocumentListItem } from '../components/review/DocumentListItem.jsx'
 import { selectArchive } from '../domain/document/access.js'
 import { useCurrentUser } from '../hooks/useCurrentUser.js'
+import { useDocumentDeletion } from '../hooks/useDocumentDeletion.jsx'
 import { useDocumentList } from '../hooks/useDocumentList.js'
 import { useTranslation } from '../hooks/useTranslation.js'
 
@@ -17,6 +18,7 @@ export default function DocumentArchivePage() {
   const { t } = useTranslation()
   const user = useCurrentUser()
   const items = selectArchive(useDocumentList(), user)
+  const deletion = useDocumentDeletion()
 
   return (
     <div className="page">
@@ -32,6 +34,8 @@ export default function DocumentArchivePage() {
         </div>
       </section>
 
+      {deletion.feedback}
+
       <Alert tone="info" title={t('archive.temporaryTitle')}>
         <p>{t('archive.temporaryNote')}</p>
         <p>{t('queue.simulatedNote')}</p>
@@ -44,10 +48,11 @@ export default function DocumentArchivePage() {
       ) : (
         <ul className="queue-list" aria-label={t('archive.listLabel')}>
           {items.map((item) => (
-            <DocumentListItem key={item.id} item={item} />
+            <DocumentListItem key={item.id} item={item} onDelete={deletion.onDelete} />
           ))}
         </ul>
       )}
+      {deletion.dialog}
     </div>
   )
 }

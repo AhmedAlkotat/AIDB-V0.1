@@ -15,6 +15,10 @@
 //   setApprovalStatus(id, status) -> Promise (acknowledged)
 //   setLastVisitedPage(id, pageNumber)
 //   subscribe(listener)  -> unsubscribe
+//   moveToTrash(id, { by }) -> hides a document (soft delete, nothing is removed: original,
+//                           results, drafts and versions stay); list()/get() no longer return it
+//   listTrashed()        -> summaries of the hidden documents (with deletedAt / deletedBy)
+//   restoreFromTrash(id) -> shows it again;  purge(id) -> removes it for good (bin only)
 //   reset()              -> forgets every record (used when the signed-in user changes,
 //                           so one user's documents never reach the next session)
 //
@@ -55,6 +59,9 @@ function summarize(record) {
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     approvalStatus: record.approval.status,
+    deletedAt: record.deletedAt ?? null,
+    deletedBy: record.deletedBy ?? null,
+    processingCount: pages.filter((page) => page.processing?.status === 'processing').length,
     totalPages: record.snapshot.file.totalPages,
     selectedCount: pages.length,
     reviewedCount,
@@ -93,23 +100,56 @@ export function createMemoryDocumentStore({ now = () => new Date().toISOString()
         updatedAt: timestamp,
         approval: { status: approval?.status ?? APPROVAL_STATUS.none },
         lastVisitedPage,
+        deletedAt: null,
+        deletedBy: null,
         snapshot: deepClone(snapshot),
       })
       notify()
       return recordId
     },
 
+    // A document in the recycle bin is "missing" for every normal use.
     get(id) {
       const record = records.get(id)
-      if (!record) return null
+      if (!record || record.deletedAt) return null
       return { ...record, approval: { ...record.approval }, snapshot: deepClone(record.snapshot) }
     },
 
     list() {
-      return [...records.values()].map(summarize).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      return [...records.values()].filter((record) => !record.deletedAt).map(summarize).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     },
 
+    // The recycle bin (Admin only, see services/recycleBinService.js), newest deletion first.
+    listTrashed() {
+      return [...records.values()].filter((record) => record.deletedAt).map(summarize).sort((a, b) => b.deletedAt.localeCompare(a.deletedAt))
+    },
+
+    // `has` also finds hidden documents, so seeding never creates a second record with the same id.
     has: (id) => records.has(id),
+
+    moveToTrash(id, { by = null } = {}) {
+      const record = records.get(id)
+      if (!record || record.deletedAt) throw new StorageError(STORAGE_ERROR.notFound, `No document with ID "${id}".`)
+      record.deletedAt = now()
+      record.deletedBy = by
+      notify()
+    },
+
+    restoreFromTrash(id) {
+      const record = records.get(id)
+      if (!record || !record.deletedAt) throw new StorageError(STORAGE_ERROR.notFound, `No deleted document with ID "${id}".`)
+      record.deletedAt = null
+      record.deletedBy = null
+      notify()
+    },
+
+    // Permanent deletion: only for a document that is already in the bin.
+    purge(id) {
+      const record = records.get(id)
+      if (!record || !record.deletedAt) throw new StorageError(STORAGE_ERROR.notFound, `No deleted document with ID "${id}".`)
+      records.delete(id)
+      notify()
+    },
 
     // Resolves only after the write was applied and acknowledged.
     async saveDraft(id, snapshot) {

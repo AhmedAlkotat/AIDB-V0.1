@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { formatDate, formatNumber, translate } from '../i18n/translations.js'
+import { formatDate, formatDateTime, formatNumber, translate } from '../i18n/translations.js'
 import { useLanguage } from './useLanguage.js'
 
 // Translation helpers derived from the existing language context.
@@ -16,5 +16,7 @@ export function useTranslation() {
 
   const formatDateForLanguage = useCallback((value) => formatDate(value, language), [language])
 
-  return { t, language, direction, formatNumber: formatNumberForLanguage, formatDate: formatDateForLanguage }
+  const formatDateTimeForLanguage = useCallback((value) => formatDateTime(value, language), [language])
+
+  return { t, language, direction, formatNumber: formatNumberForLanguage, formatDate: formatDateForLanguage, formatDateTime: formatDateTimeForLanguage }
 }

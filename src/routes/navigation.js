@@ -11,7 +11,13 @@ export const navigationItems = Object.freeze([
   { id: 'archive', path: ROUTES.archive, labelKey: 'nav.archive', icon: 'archive', group: 'main', roles: ALL_ROLES },
   { id: 'corrections', path: ROUTES.corrections, labelKey: 'nav.corrections', icon: 'fileWarning', group: 'main', roles: ALL_ROLES },
   { id: 'templates', path: ROUTES.templates, labelKey: 'nav.templates', icon: 'templates', group: 'main', roles: ALL_ROLES },
+  { id: 'notifications', path: ROUTES.notifications, labelKey: 'nav.notifications', icon: 'bell', group: 'main', roles: ALL_ROLES },
   { id: 'adminEmployees', path: ROUTES.adminEmployees, labelKey: 'nav.adminEmployees', icon: 'users', group: 'admin', roles: ADMIN_ROLES },
+  { id: 'adminRecycleBin', path: ROUTES.adminRecycleBin, labelKey: 'nav.adminRecycleBin', icon: 'trash', group: 'admin', roles: ADMIN_ROLES },
+  { id: 'adminBackups', path: ROUTES.adminBackups, labelKey: 'nav.adminBackups', icon: 'database', group: 'admin', roles: ADMIN_ROLES },
+  { id: 'adminAuditLog', path: ROUTES.adminAuditLog, labelKey: 'nav.adminAuditLog', icon: 'clipboard', group: 'admin', roles: ADMIN_ROLES },
+  { id: 'adminStorage', path: ROUTES.adminStorage, labelKey: 'nav.adminStorage', icon: 'hardDrive', group: 'admin', roles: ADMIN_ROLES },
+  { id: 'adminSettings', path: ROUTES.adminSettings, labelKey: 'nav.adminSettings', icon: 'settings', group: 'admin', roles: ADMIN_ROLES },
   { id: 'settings', path: ROUTES.settings, labelKey: 'nav.settings', icon: 'settings', group: 'system', roles: ALL_ROLES },
 ])
 

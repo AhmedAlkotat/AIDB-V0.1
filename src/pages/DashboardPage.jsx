@@ -8,6 +8,7 @@ import { USER_ROLES } from '../constants/roles.js'
 import { selectVisibleDocuments } from '../domain/document/access.js'
 import { getDocumentStats, getRecentDocuments } from '../domain/dashboard/stats.js'
 import { useCurrentUser } from '../hooks/useCurrentUser.js'
+import { useDocumentDeletion } from '../hooks/useDocumentDeletion.jsx'
 import { useDocumentList } from '../hooks/useDocumentList.js'
 import { useTranslation } from '../hooks/useTranslation.js'
 import { ROUTES } from '../routes/paths.js'
@@ -30,6 +31,7 @@ export default function DashboardPage() {
   const documents = selectVisibleDocuments(useDocumentList(), user)
   const stats = getDocumentStats(documents)
   const recent = getRecentDocuments(documents)
+  const deletion = useDocumentDeletion()
 
   return (
     <div className="page">
@@ -63,6 +65,8 @@ export default function DashboardPage() {
         )}
       </section>
 
+      {deletion.feedback}
+
       {isAdmin && <EmployeeSummary />}
 
       <section aria-labelledby="recent-heading">
@@ -74,11 +78,12 @@ export default function DashboardPage() {
         ) : (
           <ul className="queue-list" aria-label={t(`dashboard.recent.${scope}Title`)}>
             {recent.map((item) => (
-              <DocumentListItem key={item.id} item={item} />
+              <DocumentListItem key={item.id} item={item} onDelete={deletion.onDelete} />
             ))}
           </ul>
         )}
       </section>
+      {deletion.dialog}
     </div>
   )
 }

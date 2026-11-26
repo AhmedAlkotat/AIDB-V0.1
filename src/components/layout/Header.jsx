@@ -1,6 +1,7 @@
 import { useTranslation } from '../../hooks/useTranslation.js'
 import { Icon } from '../common/Icon.jsx'
 import { LanguageSwitcher } from './LanguageSwitcher.jsx'
+import { NotificationBell } from './NotificationBell.jsx'
 import { UserBadge } from './UserBadge.jsx'
 
 export function Header({ title, sidebarId, isSidebarOpen, onMenuToggle, menuButtonRef, headerRef }) {
@@ -25,15 +26,7 @@ export function Header({ title, sidebarId, isSidebarOpen, onMenuToggle, menuButt
 
       <div className="app-header__actions">
         <LanguageSwitcher />
-        {/* Visual placeholder only: notifications are not implemented yet. */}
-        <button
-          type="button"
-          className="icon-button"
-          aria-label={t('header.notificationsPlaceholder')}
-          title={t('header.notificationsPlaceholder')}
-        >
-          <Icon name="bell" />
-        </button>
+        <NotificationBell />
         <UserBadge />
       </div>
     </header>

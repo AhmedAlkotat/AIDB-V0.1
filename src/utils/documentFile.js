@@ -34,11 +34,14 @@ export function validateDocumentFile(file, maxSizeBytes = MAX_UPLOAD_SIZE_BYTES)
   return { valid: true, type }
 }
 
-// Splits a byte count into a display value and unit (B, KB or MB).
+// Splits a byte count into a display value and unit (B, KB, MB, GB or TB; the larger units are for
+// storage and backup sizes, uploads stay far below them).
 export function getFileSizeParts(bytes) {
   if (bytes < 1024) return { value: bytes, unit: 'B' }
-  if (bytes < 1024 * 1024) return { value: bytes / 1024, unit: 'KB' }
-  return { value: bytes / (1024 * 1024), unit: 'MB' }
+  if (bytes < 1024 ** 2) return { value: bytes / 1024, unit: 'KB' }
+  if (bytes < 1024 ** 3) return { value: bytes / 1024 ** 2, unit: 'MB' }
+  if (bytes < 1024 ** 4) return { value: bytes / 1024 ** 3, unit: 'GB' }
+  return { value: bytes / 1024 ** 4, unit: 'TB' }
 }
 
 // Standard PDF "open parameters" (originally defined by Adobe) asking the

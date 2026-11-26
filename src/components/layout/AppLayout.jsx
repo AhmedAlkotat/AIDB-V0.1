@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { matchPath, Outlet, useLocation } from 'react-router'
+import { NotificationsProvider } from '../../contexts/NotificationsProvider.jsx'
 import { useMediaQuery } from '../../hooks/useMediaQuery.js'
 import { useTranslation } from '../../hooks/useTranslation.js'
 import { findNavigationItem } from '../../routes/navigation.js'
@@ -84,6 +85,7 @@ export function AppLayout() {
   }, [isDrawerActive])
 
   return (
+    <NotificationsProvider>
     <div className={`app-shell${isDesktopCollapsed ? ' is-sidebar-collapsed' : ''}`}>
       <a href="#main-content" className="skip-link">
         {t('a11y.skipToContent')}
@@ -108,5 +110,6 @@ export function AppLayout() {
         </main>
       </div>
     </div>
+    </NotificationsProvider>
   )
 }

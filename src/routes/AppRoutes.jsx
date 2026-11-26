@@ -4,6 +4,8 @@ import { RequireRole } from '../components/auth/RequireRole.jsx'
 import { AppLayout } from '../components/layout/AppLayout.jsx'
 import { ADMIN_ROLES } from '../constants/roles.js'
 import AdminEmployeesPage from '../pages/AdminEmployeesPage.jsx'
+import AuditLogPage from '../pages/AuditLogPage.jsx'
+import BackupsPage from '../pages/BackupsPage.jsx'
 import CorrectionQueuePage from '../pages/CorrectionQueuePage.jsx'
 import DashboardPage from '../pages/DashboardPage.jsx'
 import DocumentArchivePage from '../pages/DocumentArchivePage.jsx'
@@ -12,7 +14,11 @@ import DocumentTemplatesPage from '../pages/DocumentTemplatesPage.jsx'
 import LoginPage from '../pages/LoginPage.jsx'
 import LogoutPage from '../pages/LogoutPage.jsx'
 import NotFoundPage from '../pages/NotFoundPage.jsx'
+import NotificationsPage from '../pages/NotificationsPage.jsx'
+import RecycleBinPage from '../pages/RecycleBinPage.jsx'
 import SettingsPage from '../pages/SettingsPage.jsx'
+import StoragePage from '../pages/StoragePage.jsx'
+import SystemSettingsPage from '../pages/SystemSettingsPage.jsx'
 import UploadDocumentPage from '../pages/UploadDocumentPage.jsx'
 import { ROUTES } from './paths.js'
 
@@ -33,8 +39,14 @@ export function AppRoutes() {
           <Route path={ROUTES.reviewDocument} element={<DocumentReviewPage />} />
           <Route path={ROUTES.templates} element={<DocumentTemplatesPage />} />
           <Route path={ROUTES.settings} element={<SettingsPage />} />
+          <Route path={ROUTES.notifications} element={<NotificationsPage />} />
           <Route element={<RequireRole roles={ADMIN_ROLES} />}>
             <Route path={ROUTES.adminEmployees} element={<AdminEmployeesPage />} />
+            <Route path={ROUTES.adminRecycleBin} element={<RecycleBinPage />} />
+            <Route path={ROUTES.adminBackups} element={<BackupsPage />} />
+            <Route path={ROUTES.adminAuditLog} element={<AuditLogPage />} />
+            <Route path={ROUTES.adminStorage} element={<StoragePage />} />
+            <Route path={ROUTES.adminSettings} element={<SystemSettingsPage />} />
           </Route>
           <Route path="*" element={<NotFoundPage />} />
         </Route>

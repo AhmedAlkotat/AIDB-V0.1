@@ -9,7 +9,13 @@ export const ROUTES = Object.freeze({
   reviewDocument: '/corrections/review/:documentId',
   templates: '/templates',
   settings: '/settings',
+  notifications: '/notifications',
   adminEmployees: '/admin/employees',
+  adminRecycleBin: '/admin/recycle-bin',
+  adminBackups: '/admin/backups',
+  adminAuditLog: '/admin/audit-log',
+  adminStorage: '/admin/storage',
+  adminSettings: '/admin/settings',
 })
 
 // Where "back" goes from a document's review page: an approved document came from the

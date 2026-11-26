@@ -253,6 +253,30 @@ const ICONS = {
       <path d="M16 7l5 5-5 5" />
     </>
   ),
+  database: (
+    <>
+      <ellipse cx="12" cy="5" rx="8" ry="3" />
+      <path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5" />
+      <path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" />
+    </>
+  ),
+  clipboard: (
+    <>
+      <rect x="5" y="4" width="14" height="17" rx="2" />
+      <path d="M9 4V3h6v1" />
+      <path d="M9 10h6" />
+      <path d="M9 14h6" />
+      <path d="M9 18h3" />
+    </>
+  ),
+  hardDrive: (
+    <>
+      <path d="M3 14h18" />
+      <path d="M5.5 5h13l2.5 9v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4z" />
+      <path d="M7 17h.01" />
+      <path d="M11 17h.01" />
+    </>
+  ),
   users: (
     <>
       <circle cx="9" cy="8" r="3.5" />

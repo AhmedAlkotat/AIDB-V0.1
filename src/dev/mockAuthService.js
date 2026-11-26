@@ -13,10 +13,10 @@
 
 import { EMPLOYEE_STATUS } from '../domain/employee/employee.js'
 import { AUTH_ERROR, AuthError } from '../services/authErrors.js'
-import { getMockAccounts, getMockAccountStore } from './mockAccountStore.js'
+import { getMockAccounts, getMockAccountStore, MOCK_SESSION_KEY } from './mockAccountStore.js'
+import { getMockContext } from './mockContext.js'
 
-export { getMockAccounts }
-export const MOCK_SESSION_KEY = 'aidp.dev.mockSession'
+export { getMockAccounts, MOCK_SESSION_KEY }
 
 const wait = (ms) => (ms > 0 ? new Promise((resolve) => setTimeout(resolve, ms)) : Promise.resolve())
 
@@ -25,7 +25,9 @@ const toUser = (account) => ({ id: account.id, displayName: account.displayName,
 // `storage`: where the dev session marker lives (default sessionStorage when it exists).
 // `latencyMs`: simulated server delay, so loading states are visible.
 // `accountStore`: the shared mock accounts (injectable for tests).
-export function createMockAuthService({ storage = globalThis.sessionStorage, latencyMs = 250, accountStore = getMockAccountStore() } = {}) {
+// `context`: the shared mock administration context, used to write the audit log and to reset the
+// simulated system data (injectable for tests).
+export function createMockAuthService({ storage = globalThis.sessionStorage, latencyMs = 250, accountStore = getMockAccountStore(), context = getMockContext() } = {}) {
   const readMarker = () => {
     try {
       return JSON.parse(storage?.getItem(MOCK_SESSION_KEY) ?? 'null')
@@ -43,6 +45,7 @@ export function createMockAuthService({ storage = globalThis.sessionStorage, lat
     // Development helper: forget every account change and start from the original accounts.
     async resetDevData() {
       accountStore.reset()
+      context.system.reset()
       storage?.removeItem(MOCK_SESSION_KEY)
     },
 
@@ -56,8 +59,17 @@ export function createMockAuthService({ storage = globalThis.sessionStorage, lat
     async login({ identifier, password } = {}) {
       await wait(latencyMs)
       const account = accountStore.findByIdentifier(identifier)
-      if (!account || account.password !== password) throw new AuthError(AUTH_ERROR.invalidCredentials)
-      if (account.status !== EMPLOYEE_STATUS.active) throw new AuthError(AUTH_ERROR.accountDisabled)
+      // The audit log never holds a password: only the account name that was tried.
+      const attempted = String(identifier ?? '').trim().slice(0, 64)
+      if (!account || account.password !== password) {
+        context.recordAudit({ category: 'authentication', action: 'loginFailed', subject: attempted, outcome: 'failure' })
+        throw new AuthError(AUTH_ERROR.invalidCredentials)
+      }
+      if (account.status !== EMPLOYEE_STATUS.active) {
+        context.recordAudit({ category: 'authentication', action: 'loginFailed', actor: toUser(account), subject: account.identifier, outcome: 'failure' })
+        throw new AuthError(AUTH_ERROR.accountDisabled)
+      }
+      context.recordAudit({ category: 'authentication', action: 'loginSucceeded', actor: toUser(account), subject: account.identifier })
       // Only the account name is remembered, never the password.
       storage?.setItem(MOCK_SESSION_KEY, JSON.stringify({ identifier: account.identifier }))
       return toUser(account)

@@ -13,6 +13,8 @@ import { USER_ROLES } from '../constants/roles.js'
 import { DEMO_USER } from '../data/mock/demoUser.mock.js'
 
 export const MOCK_ACCOUNTS_KEY = 'aidp.dev.mockAccounts'
+// Where the mock sign-in remembers who is signed in (the mock services read it to know the caller).
+export const MOCK_SESSION_KEY = 'aidp.dev.mockSession'
 
 // The accounts a fresh development session starts with. The `id` of the mock employee equals
 // the owner of the demonstration documents (data/mock/reviewDemo.mock.js), so that employee

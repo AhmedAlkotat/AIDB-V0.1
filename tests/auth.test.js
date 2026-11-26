@@ -348,13 +348,13 @@ describe('role-based navigation', () => {
 
   test('an employee sees the workspace and settings, never the Admin section', () => {
     const ids = idsFor(USER_ROLES.employee)
-    assert.deepEqual(ids, ['dashboard', 'upload', 'archive', 'corrections', 'templates', 'settings'])
+    assert.deepEqual(ids, ['dashboard', 'upload', 'archive', 'corrections', 'templates', 'notifications', 'settings'])
     assert.deepEqual(getNavigationGroup('admin', USER_ROLES.employee), [])
   })
 
   test('the Admin sees everything the employee sees plus the Admin section', () => {
     const ids = idsFor(USER_ROLES.orgAdmin)
-    assert.deepEqual(ids, ['dashboard', 'upload', 'archive', 'corrections', 'templates', 'adminEmployees', 'settings'])
+    assert.deepEqual(ids, ['dashboard', 'upload', 'archive', 'corrections', 'templates', 'notifications', 'adminEmployees', 'adminRecycleBin', 'adminBackups', 'adminAuditLog', 'adminStorage', 'adminSettings', 'settings'])
   })
 
   test('an unknown or missing role sees nothing', () => {

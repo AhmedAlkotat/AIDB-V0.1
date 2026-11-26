@@ -7,8 +7,10 @@ import { Alert } from './Alert.jsx'
 //
 // `onSubmit` runs for the submit button and Enter; the parent decides what happens next.
 // While `busy` the buttons are disabled and Escape / backdrop do not close it.
-// `error` is shown as an alert above the buttons.
-export function FormDialog({ title, children, submitLabel, cancelLabel, tone = 'primary', busy = false, error = null, onSubmit, onCancel }) {
+// `error` is shown as an alert above the buttons. `submitDisabled` keeps the submit button off
+// (e.g. until an acknowledgement is ticked); `hideCancel` leaves only the submit button (a result
+// the user just closes).
+export function FormDialog({ title, children, submitLabel, cancelLabel, tone = 'primary', busy = false, submitDisabled = false, hideCancel = false, error = null, onSubmit, onCancel }) {
   const dialogRef = useRef(null)
   const titleId = useId()
   const busyRef = useRef(busy)
@@ -45,7 +47,7 @@ export function FormDialog({ title, children, submitLabel, cancelLabel, tone = '
         noValidate
         onSubmit={(event) => {
           event.preventDefault()
-          if (!busy) onSubmit()
+          if (!busy && !submitDisabled) onSubmit()
         }}
       >
         <h2 id={titleId} className="confirm-dialog__title">
@@ -54,13 +56,15 @@ export function FormDialog({ title, children, submitLabel, cancelLabel, tone = '
         <div className="confirm-dialog__body">{children}</div>
         {error && <Alert tone="error">{error}</Alert>}
         <div className="confirm-dialog__actions">
-          <button type="submit" className={`button ${tone === 'danger' ? 'button--danger' : 'button--primary'}`} disabled={busy}>
+          <button type="submit" className={`button ${tone === 'danger' ? 'button--danger' : 'button--primary'}`} disabled={busy || submitDisabled}>
             {busy && <span className="spinner" aria-hidden="true" />}
             {submitLabel}
           </button>
-          <button type="button" className="button button--secondary" disabled={busy} onClick={onCancel}>
-            {cancelLabel}
-          </button>
+          {!hideCancel && (
+            <button type="button" className="button button--secondary" disabled={busy} onClick={onCancel}>
+              {cancelLabel}
+            </button>
+          )}
         </div>
       </form>
     </dialog>

@@ -22,8 +22,8 @@ import {
   validatePassword,
 } from '../domain/employee/employee.js'
 import { EMPLOYEE_ERROR, EmployeeError } from '../services/employeeErrors.js'
-import { getMockAccountStore } from './mockAccountStore.js'
-import { MOCK_SESSION_KEY } from './mockAuthService.js'
+import { getMockAccountStore, MOCK_SESSION_KEY } from './mockAccountStore.js'
+import { getMockContext } from './mockContext.js'
 
 const wait = (ms) => (ms > 0 ? new Promise((resolve) => setTimeout(resolve, ms)) : Promise.resolve())
 
@@ -34,6 +34,7 @@ export function createMockEmployeeService({
   storage = globalThis.sessionStorage,
   latencyMs = 250,
   accountStore = getMockAccountStore(),
+  context = getMockContext(),
   generateId = () => `emp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
 } = {}) {
   // The server-side check: only the signed-in, active Admin may manage employees.
@@ -48,12 +49,16 @@ export function createMockEmployeeService({
     if (!actor || actor.status !== EMPLOYEE_STATUS.active || actor.role !== USER_ROLES.orgAdmin) {
       throw new EmployeeError(EMPLOYEE_ERROR.forbidden)
     }
+    return { id: actor.id, displayName: actor.displayName }
   }
+
+  // Account changes go to the audit log (category "employee accounts"): who did what to which
+  // account, never a password.
+  const audit = (actor, action, subject) => context.recordAudit({ category: 'employeeAccounts', action, actor, subject })
 
   async function run(operation) {
     await wait(latencyMs)
-    requireAdmin()
-    return operation()
+    return operation(requireAdmin())
   }
 
   // Only employees can be managed here; the Admin account is not an "employee".
@@ -85,7 +90,7 @@ export function createMockEmployeeService({
       ),
 
     createEmployee: ({ displayName, identifier, password } = {}) =>
-      run(() => {
+      run((actor) => {
         rejectInvalid(validateEmployeeForm({ displayName, identifier, password, confirmation: password }, { requirePassword: true }))
         rejectDuplicate(identifier)
         const timestamp = new Date().toISOString()
@@ -100,11 +105,12 @@ export function createMockEmployeeService({
           updatedAt: timestamp,
         }
         accountStore.add(record)
+        audit(actor, 'employeeCreated', record.identifier)
         return toEmployee(record)
       }),
 
     updateEmployee: (id, { displayName, identifier } = {}) =>
-      run(() => {
+      run((actor) => {
         requireEmployee(id)
         const errors = {}
         const nameError = validateDisplayName(displayName)
@@ -113,28 +119,35 @@ export function createMockEmployeeService({
         if (identifierError) errors.identifier = identifierError
         rejectInvalid(errors)
         rejectDuplicate(identifier, id)
-        return toEmployee(accountStore.update(id, { displayName: normalizeDisplayName(displayName), identifier: normalizeIdentifier(identifier) }))
+        const updated = toEmployee(accountStore.update(id, { displayName: normalizeDisplayName(displayName), identifier: normalizeIdentifier(identifier) }))
+        audit(actor, 'employeeUpdated', updated.identifier)
+        return updated
       }),
 
     setEmployeePassword: (id, password) =>
-      run(() => {
-        requireEmployee(id)
+      run((actor) => {
+        const target = requireEmployee(id)
         const passwordError = validatePassword(password)
         rejectInvalid(passwordError ? { password: passwordError } : {})
         accountStore.update(id, { password })
+        audit(actor, 'employeePasswordSet', target.identifier)
       }),
 
     // Deactivation keeps the account, its documents and its history; it only blocks sign-in.
     deactivateEmployee: (id) =>
-      run(() => {
+      run((actor) => {
         requireEmployee(id)
-        return toEmployee(accountStore.update(id, { status: EMPLOYEE_STATUS.deactivated }))
+        const updated = toEmployee(accountStore.update(id, { status: EMPLOYEE_STATUS.deactivated }))
+        audit(actor, 'employeeDeactivated', updated.identifier)
+        return updated
       }),
 
     reactivateEmployee: (id) =>
-      run(() => {
+      run((actor) => {
         requireEmployee(id)
-        return toEmployee(accountStore.update(id, { status: EMPLOYEE_STATUS.active }))
+        const updated = toEmployee(accountStore.update(id, { status: EMPLOYEE_STATUS.active }))
+        audit(actor, 'employeeReactivated', updated.identifier)
+        return updated
       }),
   }
 }

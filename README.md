@@ -141,10 +141,21 @@ What is mock or temporary (and labelled as such in the UI):
 - The login page's development helper has a "reset mock accounts" button, because the mock keeps
   account changes (new employees, changed passwords) in the tab's sessionStorage.
 
+## System administration (Batch C)
+
+Recycle bin, backup and restore, audit log, storage monitoring, notifications and system settings
+(Admin pages under `/admin/...`, notifications and preferences for every role). Everything runs on
+**development mocks** behind replaceable services (`src/services/*Service.js`, mocks in `src/dev/`);
+each page says so, and **no real backup, encryption, restoration, storage measurement or server-side
+security exists**. Production builds use "not connected" services. All defaults and allowed ranges
+are provisional and live in `src/domain/settings/settings.js`. See
+`docs/batch-c-system-administration.md`. Arabic and English are complete for every screen; a test
+(`tests/i18nCoverage.test.js`) keeps the two dictionaries identical and every used key defined.
+
 Browser checks (real Chrome/Edge, no extra dependency): start `npm run dev -- --port 5199`
 in one terminal and run `npm run check:browser` in another. They cover the layout (sticky
 viewer, split pane around 1024px, RTL/LTR), image rotation, the review interactions and the
-navigation guard, sign-in/roles (`auth.check.mjs`) and employee management (`employees.check.mjs`); `auth-production.check.mjs` runs against
+navigation guard, sign-in/roles (`auth.check.mjs`) employee management (`employees.check.mjs`) and system administration (`admin.check.mjs`); `auth-production.check.mjs` runs against
 `vite preview` and proves the mock sign-in is absent from a production build (see its header). See
 `scripts/browser-checks/`. Findings, fixes and the remaining gaps of the
 Phase 2 stabilization are in `docs/task-2-phase-2-review.md`.
