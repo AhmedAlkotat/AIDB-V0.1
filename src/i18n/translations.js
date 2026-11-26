@@ -75,22 +75,148 @@ export const translations = Object.freeze({
         title: 'حسابات تجريبية',
         note: 'تسجيل الدخول التجريبي موجود في نسخة التطوير فقط، وهذه الحسابات غير حقيقية.',
         fillAs: 'تعبئة بيانات: {role}',
+        reset: 'إعادة ضبط الحسابات التجريبية',
       },
     },
     dashboard: {
       welcomeTitle: 'مرحبًا بك، {name}',
       welcomeSubtitle:
-        'من هنا يمكنك رفع المستندات ومتابعة حالتها وإدارتها في مكان واحد.',
+        'من هنا يمكنك رفع مستنداتك ومتابعة حالتها ومراجعتها في مكان واحد.',
+      welcomeSubtitleAdmin:
+        'من هنا يمكنك متابعة مستندات المؤسسة وحسابات الموظفين وإدارتها في مكان واحد.',
       uploadCta: 'رفع مستند جديد',
-      overview: 'ملخص المستندات',
-      stats: {
-        total: 'إجمالي المستندات',
-        completed: 'المستندات المكتملة',
+      documents: {
+        employeeTitle: 'ملخص مستنداتي',
+        adminTitle: 'ملخص مستندات المؤسسة',
+        employeeTotal: 'إجمالي مستنداتي',
+        adminTotal: 'إجمالي مستندات المؤسسة',
+        approved: 'المستندات المعتمدة',
         needsCorrection: 'مستندات تحتاج إلى تصحيح',
-        awaitingProcessing: 'مستندات بانتظار المعالجة',
+        temporaryNote:
+          'هذه الأرقام محسوبة من المستندات المحفوظة مؤقتًا في ذاكرة المتصفح (ومنها المستندات التجريبية)، وليست بيانات حقيقية من الخادم.',
       },
-      demoNote:
-        'الأرقام المعروضة بيانات تجريبية لأغراض العرض فقط، ولا تمثل مستندات حقيقية.',
+      employees: {
+        title: 'حسابات الموظفين',
+        manage: 'إدارة الموظفين',
+        total: 'إجمالي الموظفين',
+        active: 'الحسابات النشطة',
+        deactivated: 'الحسابات المعطّلة',
+        errorTitle: 'تعذر تحميل أرقام الموظفين',
+      },
+      recent: {
+        employeeTitle: 'آخر مستنداتي',
+        adminTitle: 'آخر المستندات في المؤسسة',
+        empty: 'لا توجد مستندات بعد.',
+      },
+    },
+    employees: {
+      create: 'إضافة موظف',
+      mock: {
+        title: 'بيانات تجريبية',
+        text: 'حسابات الموظفين هنا بيانات تجريبية في نسخة التطوير، ولا تُحفظ في خادم، وتبقى في هذه الجلسة من المتصفح فقط.',
+      },
+      rules:
+        'لا يمكن حذف حساب موظف نهائيًا: تعطيل الحساب يمنعه من تسجيل الدخول مع بقاء مستنداته وسجل أعماله. لا يستطيع الموظف تغيير كلمة مروره بنفسه، ولا يُلزم بتغييرها عند أول دخول.',
+      filters: {
+        search: 'بحث بالاسم أو اسم المستخدم',
+        searchPlaceholder: 'اكتب للبحث…',
+        status: 'حالة الحساب',
+        all: 'جميع الحسابات',
+        active: 'النشطة',
+        deactivated: 'المعطّلة',
+        summary: 'عرض {shown} من {total}',
+      },
+      table: {
+        caption: 'قائمة الموظفين',
+        name: 'الاسم',
+        username: 'اسم المستخدم',
+        status: 'الحالة',
+        created: 'تاريخ الإنشاء',
+        actions: 'الإجراءات',
+      },
+      status: {
+        active: 'نشط',
+        deactivated: 'معطّل',
+      },
+      actions: {
+        edit: 'تعديل',
+        setPassword: 'تعيين كلمة مرور',
+        deactivate: 'تعطيل',
+        reactivate: 'إعادة التفعيل',
+      },
+      states: {
+        loading: 'جارٍ تحميل الموظفين…',
+        error: {
+          title: 'تعذر تحميل قائمة الموظفين',
+          retry: 'إعادة المحاولة',
+        },
+        empty: {
+          title: 'لا يوجد موظفون بعد',
+          text: 'أضف أول حساب موظف ليتمكن من رفع المستندات ومراجعتها.',
+        },
+        noResults: 'لا يوجد موظفون يطابقون البحث أو التصفية.',
+        clearFilters: 'مسح البحث والتصفية',
+      },
+      form: {
+        createTitle: 'إضافة موظف',
+        editTitle: 'تعديل بيانات الموظف',
+        name: 'الاسم الكامل',
+        username: 'اسم المستخدم',
+        usernameHint: 'يستخدمه الموظف لتسجيل الدخول.',
+        password: 'كلمة المرور الأولية',
+        passwordHint: 'لا تقل عن {min} أحرف. لا يُلزم الموظف بتغييرها عند أول دخول، ولن تتمكن من عرضها لاحقًا.',
+        confirmPassword: 'تأكيد كلمة المرور',
+        createSubmit: 'إنشاء الحساب',
+        editSubmit: 'حفظ التعديلات',
+        saving: 'جارٍ الحفظ…',
+        cancel: 'إلغاء',
+      },
+      password: {
+        title: 'تعيين كلمة مرور جديدة للموظف {name}',
+        intro: 'ستحل كلمة المرور الجديدة محل الحالية فور الحفظ. لا يمكن عرض كلمة المرور الحالية لأي مستخدم.',
+        newPassword: 'كلمة المرور الجديدة',
+        submit: 'تعيين كلمة المرور',
+      },
+      deactivate: {
+        title: 'تعطيل حساب {name}؟',
+        text: 'لن يتمكن الموظف من تسجيل الدخول، وستُنهى جلساته. تبقى مستنداته وسجل أعماله محفوظة، ويمكنك إعادة تفعيل الحساب في أي وقت.',
+        confirm: 'تعطيل الحساب',
+      },
+      reactivate: {
+        title: 'إعادة تفعيل حساب {name}؟',
+        text: 'سيتمكن الموظف من تسجيل الدخول مرة أخرى بكلمة مروره الحالية.',
+        confirm: 'إعادة التفعيل',
+      },
+      notice: {
+        created: 'تم إنشاء حساب {name}.',
+        updated: 'تم حفظ بيانات {name}.',
+        passwordSet: 'تم تعيين كلمة مرور جديدة للموظف {name}.',
+        deactivated: 'تم تعطيل حساب {name}.',
+        reactivated: 'تمت إعادة تفعيل حساب {name}.',
+      },
+      validation: {
+        required: 'هذا الحقل مطلوب.',
+        invalidChars: 'استخدم الأحرف الإنجليزية والأرقام والرموز . _ - @ فقط، دون مسافات.',
+        mismatch: 'كلمتا المرور غير متطابقتين.',
+        displayName: { tooLong: 'الاسم طويل جدًا (الحد الأقصى {max} حرفًا).' },
+        identifier: {
+          tooShort: 'يجب ألا يقل اسم المستخدم عن {min} أحرف.',
+          tooLong: 'اسم المستخدم طويل جدًا (الحد الأقصى {max} حرفًا).',
+        },
+        password: {
+          tooShort: 'يجب ألا تقل كلمة المرور عن {min} أحرف.',
+          tooLong: 'كلمة المرور طويلة جدًا (الحد الأقصى {max} حرفًا).',
+        },
+      },
+      errors: {
+        duplicateIdentifier: 'اسم المستخدم مستخدم بالفعل. اختر اسمًا آخر.',
+        forbidden: 'ليست لديك صلاحية لتنفيذ هذا الإجراء.',
+        notFound: 'لم يعد هذا الحساب موجودًا. أغلق النافذة وحدّث القائمة.',
+        invalidInput: 'تحقق من البيانات المدخلة وحاول مرة أخرى.',
+        notConnected: 'إدارة الموظفين غير متاحة بعد: الخادم غير متصل بالواجهة.',
+        network: 'تعذر الوصول إلى الخادم. تحقق من الاتصال وحاول مرة أخرى.',
+        unknown: 'حدث خطأ غير متوقع. حاول مرة أخرى.',
+      },
     },
     upload: {
       title: 'رفع مستند للمعالجة',
@@ -591,7 +717,7 @@ export const translations = Object.freeze({
         description: 'هذه الصفحة غير متاحة لدورك الحالي. عد إلى لوحة التحكم أو تواصل مع المدير.',
       },
       adminEmployees: {
-        description: 'ستتيح هذه الصفحة للمدير إنشاء حسابات الموظفين وإعادة تعيين كلمات مرورهم وتعطيل الحسابات وإعادة تفعيلها.',
+        description: 'يمكن للمدير هنا إنشاء حسابات الموظفين وتعديل بياناتهم وتعيين كلمات مرورهم وتعطيل الحسابات وإعادة تفعيلها.',
       },
       notFound: {
         title: 'الصفحة غير موجودة',
@@ -671,21 +797,146 @@ export const translations = Object.freeze({
         title: 'Mock accounts',
         note: 'Mock sign-in exists only in development builds. These accounts are not real.',
         fillAs: 'Fill in as {role}',
+        reset: 'Reset mock accounts',
       },
     },
     dashboard: {
       welcomeTitle: 'Welcome, {name}',
-      welcomeSubtitle: 'Upload documents, follow their status, and manage them in one place.',
+      welcomeSubtitle: 'Upload your documents, follow their status and review them in one place.',
+      welcomeSubtitleAdmin: "Follow the institution's documents and manage employee accounts in one place.",
       uploadCta: 'Upload new document',
-      overview: 'Documents overview',
-      stats: {
-        total: 'Total documents',
-        completed: 'Completed documents',
+      documents: {
+        employeeTitle: 'My documents',
+        adminTitle: "Institution's documents",
+        employeeTotal: 'All my documents',
+        adminTotal: "All institution's documents",
+        approved: 'Approved documents',
         needsCorrection: 'Documents requiring correction',
-        awaitingProcessing: 'Documents awaiting processing',
+        temporaryNote:
+          "These figures are computed from the documents held temporarily in this browser tab's memory (including the demonstration documents). They are not real server data.",
       },
-      demoNote:
-        'The figures shown are demo data for display purposes only and do not represent real documents.',
+      employees: {
+        title: 'Employee accounts',
+        manage: 'Manage employees',
+        total: 'All employees',
+        active: 'Active accounts',
+        deactivated: 'Deactivated accounts',
+        errorTitle: 'Could not load the employee figures',
+      },
+      recent: {
+        employeeTitle: 'My recent documents',
+        adminTitle: "Institution's recent documents",
+        empty: 'There are no documents yet.',
+      },
+    },
+    employees: {
+      create: 'Add employee',
+      mock: {
+        title: 'Demo data',
+        text: 'The employee accounts here are demo data in the development build. They are not stored on a server and live in this browser session only.',
+      },
+      rules:
+        "An employee account can never be permanently deleted: deactivating it blocks sign-in while the employee's documents and history are kept. Employees cannot change their own password and are not required to change it at first sign-in.",
+      filters: {
+        search: 'Search by name or username',
+        searchPlaceholder: 'Type to search…',
+        status: 'Account status',
+        all: 'All accounts',
+        active: 'Active',
+        deactivated: 'Deactivated',
+        summary: 'Showing {shown} of {total}',
+      },
+      table: {
+        caption: 'Employee list',
+        name: 'Name',
+        username: 'Username',
+        status: 'Status',
+        created: 'Created',
+        actions: 'Actions',
+      },
+      status: {
+        active: 'Active',
+        deactivated: 'Deactivated',
+      },
+      actions: {
+        edit: 'Edit',
+        setPassword: 'Set password',
+        deactivate: 'Deactivate',
+        reactivate: 'Reactivate',
+      },
+      states: {
+        loading: 'Loading employees…',
+        error: {
+          title: 'Could not load the employee list',
+          retry: 'Try again',
+        },
+        empty: {
+          title: 'No employees yet',
+          text: 'Add the first employee account so they can upload and review documents.',
+        },
+        noResults: 'No employees match the search or filter.',
+        clearFilters: 'Clear search and filter',
+      },
+      form: {
+        createTitle: 'Add employee',
+        editTitle: 'Edit employee details',
+        name: 'Full name',
+        username: 'Username',
+        usernameHint: 'The employee uses it to sign in.',
+        password: 'Initial password',
+        passwordHint: 'At least {min} characters. The employee is not required to change it at first sign-in, and you will not be able to view it later.',
+        confirmPassword: 'Confirm password',
+        createSubmit: 'Create account',
+        editSubmit: 'Save changes',
+        saving: 'Saving…',
+        cancel: 'Cancel',
+      },
+      password: {
+        title: 'Set a new password for {name}',
+        intro: 'The new password replaces the current one as soon as it is saved. Nobody can view the current password.',
+        newPassword: 'New password',
+        submit: 'Set password',
+      },
+      deactivate: {
+        title: 'Deactivate the account of {name}?',
+        text: 'The employee will not be able to sign in and their sessions will be ended. Their documents and work history are kept, and you can reactivate the account at any time.',
+        confirm: 'Deactivate account',
+      },
+      reactivate: {
+        title: 'Reactivate the account of {name}?',
+        text: 'The employee will be able to sign in again with their current password.',
+        confirm: 'Reactivate',
+      },
+      notice: {
+        created: 'The account of {name} was created.',
+        updated: 'The details of {name} were saved.',
+        passwordSet: 'A new password was set for {name}.',
+        deactivated: 'The account of {name} was deactivated.',
+        reactivated: 'The account of {name} was reactivated.',
+      },
+      validation: {
+        required: 'This field is required.',
+        invalidChars: 'Use only English letters, digits and the symbols . _ - @, with no spaces.',
+        mismatch: 'The two passwords do not match.',
+        displayName: { tooLong: 'The name is too long (at most {max} characters).' },
+        identifier: {
+          tooShort: 'The username must be at least {min} characters.',
+          tooLong: 'The username is too long (at most {max} characters).',
+        },
+        password: {
+          tooShort: 'The password must be at least {min} characters.',
+          tooLong: 'The password is too long (at most {max} characters).',
+        },
+      },
+      errors: {
+        duplicateIdentifier: 'This username is already in use. Choose another one.',
+        forbidden: 'You do not have permission to do this.',
+        notFound: 'This account no longer exists. Close the dialog and refresh the list.',
+        invalidInput: 'Check the entered data and try again.',
+        notConnected: 'Employee management is not available yet: the server is not connected to the interface.',
+        network: 'The server could not be reached. Check the connection and try again.',
+        unknown: 'An unexpected error occurred. Please try again.',
+      },
     },
     upload: {
       title: 'Upload a document for processing',
@@ -832,7 +1083,7 @@ export const translations = Object.freeze({
         description: 'This page is not available for your role. Return to the dashboard or contact the Admin.',
       },
       adminEmployees: {
-        description: 'This page will let the Admin create employee accounts, reset passwords, and deactivate or reactivate accounts.',
+        description: 'Here the Admin can create employee accounts, edit their details, set their passwords, and deactivate or reactivate accounts.',
       },
       notFound: {
         title: 'Page not found',
@@ -873,4 +1124,10 @@ export function translate(language, key, params) {
 
 export function formatNumber(value, language) {
   return new Intl.NumberFormat(language).format(value)
+}
+
+// A date (ISO string or Date) in the language's own style; an invalid value gives an empty string.
+export function formatDate(value, language) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat(language, { dateStyle: 'medium' }).format(date)
 }

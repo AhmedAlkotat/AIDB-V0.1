@@ -130,13 +130,21 @@ What is mock or temporary (and labelled as such in the UI):
   user's documents.
 - `src/services/apiClient.js` is the shared HTTP client for the future API (not used by any
   screen yet).
-- `/admin/employees` is only a placeholder (Admin-only) that gives the guards something to
-  protect; employee management itself is not built yet.
+- `/admin/employees` is the Admin-only **employee management** (Batch B): list, search, status
+  filter, create with an initial password, edit, set a new password, deactivate/reactivate. Accounts are
+  never deleted and passwords are never shown. It talks to a replaceable service
+  (`src/services/employeeService.js`, "not connected" in production); in development a mock plays the
+  server and shares its account store with the mock sign-in, so what the Admin does decides who
+  can sign in. The dashboard is role-based: an employee sees their own documents, the Admin the
+  whole institution plus the employee accounts; mock/temporary figures are labelled as demo data.
+  Details and open questions: `docs/batch-b-employee-management.md`.
+- The login page's development helper has a "reset mock accounts" button, because the mock keeps
+  account changes (new employees, changed passwords) in the tab's sessionStorage.
 
 Browser checks (real Chrome/Edge, no extra dependency): start `npm run dev -- --port 5199`
 in one terminal and run `npm run check:browser` in another. They cover the layout (sticky
 viewer, split pane around 1024px, RTL/LTR), image rotation, the review interactions and the
-navigation guard and sign-in/roles (`auth.check.mjs`); `auth-production.check.mjs` runs against
+navigation guard, sign-in/roles (`auth.check.mjs`) and employee management (`employees.check.mjs`); `auth-production.check.mjs` runs against
 `vite preview` and proves the mock sign-in is absent from a production build (see its header). See
 `scripts/browser-checks/`. Findings, fixes and the remaining gaps of the
 Phase 2 stabilization are in `docs/task-2-phase-2-review.md`.

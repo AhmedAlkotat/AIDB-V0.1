@@ -3,11 +3,12 @@ import { Icon } from './Icon.jsx'
 
 const TONE_ICONS = {
   info: 'info',
+  success: 'checkCircle',
   error: 'alertCircle',
   warning: 'fileWarning',
 }
 
-// Inline message box. `tone`: info | error | warning. Errors are announced
+// Inline message box. `tone`: info | success | error | warning. Errors are announced
 // assertively (role="alert"), other tones politely (role="status").
 // Pass `onDismiss` to show a close button.
 export function Alert({ tone = 'info', title, children, onDismiss, dismissLabel }) {

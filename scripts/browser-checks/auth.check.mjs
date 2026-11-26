@@ -125,7 +125,7 @@ await runChecks('Authentication and role-based access (Batch A)', async ({ brows
   check('the Admin did not inherit the previous user\'s records', await page.eval(`import('/src/services/documentStore.js').then((m) => !m.documentStore.has('private-leak-check'))`))
   await page.click('a.sidebar__link[href="/admin/employees"]')
   await page.waitFor(`location.pathname === '/admin/employees'`)
-  check('the Admin opens the Admin page (not the access-denied page)', (await text(page, '.placeholder-card__title')) === 'إدارة الموظفين')
+  check('the Admin opens the Admin page (not the access-denied page)', (await text(page, '.page-intro__title')) === 'إدارة الموظفين')
 
   // The existing approved-document rule now follows the authenticated role (it used to
   // follow VITE_DEMO_ROLE): only the Admin may ask for a new editable version.

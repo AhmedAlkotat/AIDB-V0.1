@@ -24,7 +24,7 @@ await runChecks('Production build has no mock authentication', async ({ browser,
   // A forged development session marker must not sign anybody in.
   const page = await browser.newPage({ width: 1280, height: 900, session: null })
   await page.send('Page.addScriptToEvaluateOnNewDocument', {
-    source: `try { sessionStorage.setItem(${JSON.stringify(MOCK_KEY)}, JSON.stringify({ identifier: 'admin' })) } catch {}`,
+    source: `try { sessionStorage.setItem(${JSON.stringify(MOCK_KEY)}, JSON.stringify({ identifier: 'admin' })); sessionStorage.setItem('aidp.dev.mockAccounts', JSON.stringify([{ id: 'forged', identifier: 'forged', password: 'forged-pass-1', displayName: 'x', role: 'orgAdmin', status: 'active' }])) } catch {}`,
   })
 
   await page.goto(`${BASE_URL}/admin/employees`)
@@ -42,6 +42,13 @@ await runChecks('Production build has no mock authentication', async ({ browser,
   }
 
   const bundle = await page.eval(`fetch(document.querySelector('script[type=module]').src).then((r) => r.text())`)
-  check('the entry bundle contains no mock accounts or passwords', !/employee-dev|admin-dev|disabled-dev|aidp\.dev\.mockSession/.test(bundle))
+  check('the entry bundle contains no mock accounts or passwords', !/employee-dev|admin-dev|disabled-dev|aidp\.dev\.mockSession|aidp\.dev\.mockAccounts/.test(bundle))
+
+  // A forged development account store must not create accounts either.
+  await page.eval(`(() => { const el = document.querySelector('#login-identifier'); el.focus(); el.select() })()`)
+  await submit(page, 'forged', 'forged-pass-1')
+  await page.waitFor(`document.querySelector('.alert--error')`)
+  await sleep(200)
+  check('a forged development account store creates no account', (await text(page, '.alert--error')).includes('الخادم غير متصل') && !(await exists(page, '.user-badge')))
   check('no console errors', page.consoleErrors.length === 0, page.consoleErrors.join(' | '))
 })

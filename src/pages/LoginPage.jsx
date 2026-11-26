@@ -16,7 +16,7 @@ import { getPostLoginPath } from '../routes/routeAccess.js'
 // ("username"): whether the backend uses a username or an email is still to be agreed.
 export default function LoginPage() {
   const { t } = useTranslation()
-  const { status, error, isSubmitting, login, clearError, devAccounts } = useAuth()
+  const { status, error, isSubmitting, login, clearError, devAccounts, devReset } = useAuth()
   const location = useLocation()
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
@@ -143,6 +143,11 @@ export default function LoginPage() {
                     {t('auth.dev.fillAs', { role: t(`roles.${account.role}`) })}
                   </button>
                 ))}
+                {devReset && (
+                  <button type="button" className="button button--secondary button--sm" disabled={isSubmitting} onClick={() => devReset().then(clearError)}>
+                    {t('auth.dev.reset')}
+                  </button>
+                )}
               </div>
             </div>
           )}

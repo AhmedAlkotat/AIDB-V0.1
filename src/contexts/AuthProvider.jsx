@@ -13,9 +13,13 @@ import { AuthContext } from './authContext.js'
 //   never reaches the next session. It runs after the screens of the old session have
 //   unmounted (they store their pending edits while unmounting).
 export function AuthProvider({ children, service, onSessionEnded }) {
-  const [{ store, devAccounts }] = useState(() => {
+  const [{ store, devAccounts, devReset }] = useState(() => {
     const authService = service ?? createAuthService()
-    return { store: createAuthStore(authService), devAccounts: authService.devAccounts ?? null }
+    return {
+      store: createAuthStore(authService),
+      devAccounts: authService.devAccounts ?? null,
+      devReset: authService.resetDevData?.bind(authService) ?? null,
+    }
   })
   const state = useSyncExternalStore(store.subscribe, store.getState)
 
@@ -44,8 +48,9 @@ export function AuthProvider({ children, service, onSessionEnded }) {
       clearError: store.clearError,
       retryInitialize: store.retryInitialize,
       devAccounts,
+      devReset,
     }),
-    [state, store, devAccounts],
+    [state, store, devAccounts, devReset],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
