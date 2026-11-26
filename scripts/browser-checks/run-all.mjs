@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const scripts = ['layout.check.mjs', 'image-rotation.check.mjs', 'review.check.mjs', 'navigation.check.mjs', 'integration.check.mjs', 'uat.check.mjs']
+const scripts = ['layout.check.mjs', 'image-rotation.check.mjs', 'review.check.mjs', 'navigation.check.mjs', 'integration.check.mjs', 'uat.check.mjs', 'auth.check.mjs']
 let failed = 0
 for (const script of scripts) {
   const result = spawnSync(process.execPath, [join(here, script)], { stdio: 'inherit' })

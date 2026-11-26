@@ -7,7 +7,8 @@ React and Vite application written in JavaScript.
 **Phase 1 (done):** application shell with sidebar navigation, header, an
 initial dashboard (demo statistics only), and placeholder pages for every
 section, in Arabic (RTL, default) and English (LTR). OCR, AI processing,
-backend services, and authentication are future work.
+and backend services are future work. Authentication and roles are in place with a
+development-only mock (see below).
 
 ## Development
 
@@ -100,18 +101,44 @@ What is mock or temporary (and labelled as such in the UI):
 - Demo documents (`src/data/mock/reviewDemo.mock.js`) are created in the queue,
   with a generated real PDF (`demoPdf.js`). Development builds also show a small
   "demo tools" panel to simulate a failing storage or extraction.
-- To try the admin-only action set `VITE_DEMO_ROLE=orgAdmin` (e.g. in
-  `.env.local`).
+- To try the admin-only action, sign in with the development mock Admin account
+  (see "Authentication and roles" below). `VITE_DEMO_ROLE` no longer exists.
 - Leaving the page is guarded with `useBlocker`, which needs a data router, so
   `main.jsx` uses `createBrowserRouter` + `RouterProvider` (all routes are still
   declared in `AppRoutes`).
 - PDF pages without embedded fonts use the browser's substitute fonts; PDF.js
   font/CMap data is not bundled yet (scanned documents are unaffected).
 
+## Authentication and roles (Batch A)
+
+- Exactly two roles: **Employee** and **Admin** (`orgAdmin` in the code). Everything
+  except `/login` and `/logout` is behind `RequireAuth`; Admin-only pages are also behind
+  `RequireRole` (`src/routes/AppRoutes.jsx`), and the sidebar lists only what the role may
+  open (`src/routes/navigation.js`). **These checks only shape the interface**: the backend
+  must enforce every permission.
+- The authentication service is replaceable (`src/services/authService.js`). It is **not
+  connected to a backend yet**: a production build cannot sign in (it reports "not
+  connected"); there is no bypass and no built-in credential. Endpoint names, the login
+  identifier, the JWT storage strategy and the response schemas are still to be agreed.
+- `npm run dev` uses a **development-only mock** (`src/dev/mockAuthService.js`, never part of
+  production bundles). The login page offers buttons that fill in its accounts:
+  `employee` / `employee-dev`, `admin` / `admin-dev`, and `disabled` / `disabled-dev` (a
+  deactivated account). The mock keeps a session marker in `sessionStorage` so a reload keeps
+  you signed in.
+- Signing out goes through `/logout`, so the review page's unsaved-work guard runs first.
+  When the user signs out the in-memory documents are wiped, so nobody sees the previous
+  user's documents.
+- `src/services/apiClient.js` is the shared HTTP client for the future API (not used by any
+  screen yet).
+- `/admin/employees` is only a placeholder (Admin-only) that gives the guards something to
+  protect; employee management itself is not built yet.
+
 Browser checks (real Chrome/Edge, no extra dependency): start `npm run dev -- --port 5199`
 in one terminal and run `npm run check:browser` in another. They cover the layout (sticky
 viewer, split pane around 1024px, RTL/LTR), image rotation, the review interactions and the
-navigation guard; see `scripts/browser-checks/`. Findings, fixes and the remaining gaps of the
+navigation guard and sign-in/roles (`auth.check.mjs`); `auth-production.check.mjs` runs against
+`vite preview` and proves the mock sign-in is absent from a production build (see its header). See
+`scripts/browser-checks/`. Findings, fixes and the remaining gaps of the
 Phase 2 stabilization are in `docs/task-2-phase-2-review.md`.
 
 Tests: `npm test` runs the Node test runner over `tests/` (domain, session,

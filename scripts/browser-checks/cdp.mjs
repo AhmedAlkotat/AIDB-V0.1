@@ -2,7 +2,9 @@
 // it uses Node's built-in fetch/WebSocket and an installed Chrome or Edge).
 //
 //   const browser = await launchBrowser()
-//   const page = await browser.newPage({ width: 1280, height: 800 })
+//   const page = await browser.newPage({ width: 1280, height: 800 })   // signed in as the mock employee
+//   const page = await browser.newPage({ session: 'admin' })              // signed in as the mock Admin
+//   const page = await browser.newPage({ session: null })                 // signed out
 //   await page.goto('http://localhost:5199/')
 //   await page.eval('document.title')
 //   await browser.close()
@@ -66,7 +68,10 @@ export async function launchBrowser({ headless = true } = {}) {
     return socket
   }
 
-  async function newPage({ width = 1280, height = 800 } = {}) {
+  // `session` pre-signs-in a development mock account before the app starts (the mock keeps
+  // its session marker in sessionStorage; see src/dev/mockAuthService.js), so checks that
+  // test other features need no login step. Pass null to start signed out.
+  async function newPage({ width = 1280, height = 800, session = 'employee' } = {}) {
     const target = await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT' })).json()
     const socket = await connect(target.webSocketDebuggerUrl)
     let nextId = 1
@@ -110,6 +115,12 @@ export async function launchBrowser({ headless = true } = {}) {
     await send('Runtime.enable')
     await send('DOM.enable')
     await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false })
+    if (session) {
+      const marker = JSON.stringify(JSON.stringify({ identifier: session }))
+      await send('Page.addScriptToEvaluateOnNewDocument', {
+        source: `try { if (!sessionStorage.getItem('aidp.dev.mockSession')) sessionStorage.setItem('aidp.dev.mockSession', ${marker}) } catch {}`,
+      })
+    }
 
     // Browser dialogs (e.g. the "leave site?" prompt) are accepted and recorded.
     const dialogs = []
@@ -129,6 +140,8 @@ export async function launchBrowser({ headless = true } = {}) {
         await send('Page.navigate', { url })
         await Promise.race([loaded, sleep(15000)])
         await sleep(300)
+        // The app first checks for an existing session ("loading" screen).
+        await api.waitFor(`!document.querySelector('.auth-loading')`).catch(() => {})
       },
       // Evaluates an expression in the page (promises are awaited) and returns its value.
       async eval(expression) {

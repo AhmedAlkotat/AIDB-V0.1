@@ -172,21 +172,6 @@ html {
   border-block-start: 1px solid rgb(255 255 255 / 8%);
 }
 
-.sidebar__logout[aria-disabled='true'] {
-  cursor: default;
-}
-
-.sidebar__soon {
-  margin-inline-start: auto;
-  padding: 0 8px;
-  border-radius: 999px;
-  background: rgb(255 255 255 / 10%);
-  color: rgb(255 255 255 / 75%);
-  font-size: 0.7rem;
-  font-weight: 600;
-  line-height: 1.8;
-}
-
 .sidebar-backdrop {
   display: none;
 }

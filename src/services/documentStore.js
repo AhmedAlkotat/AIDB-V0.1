@@ -15,6 +15,8 @@
 //   setApprovalStatus(id, status) -> Promise (acknowledged)
 //   setLastVisitedPage(id, pageNumber)
 //   subscribe(listener)  -> unsubscribe
+//   reset()              -> forgets every record (used when the signed-in user changes,
+//                           so one user's documents never reach the next session)
 //
 // A record: { id, name, file, usesMockProcessing, kind, ownerId, createdAt, updatedAt,
 //             approval: { status }, lastVisitedPage, snapshot }
@@ -165,6 +167,14 @@ export function createMemoryDocumentStore({ now = () => new Date().toISOString()
     subscribe(listener) {
       listeners.add(listener)
       return () => listeners.delete(listener)
+    },
+
+    // Removes every record and clears the simulated failure. Called when the user signs
+    // out (or the session ends), so the next user starts from an empty store.
+    reset() {
+      records.clear()
+      simulateFailure = false
+      notify()
     },
 
     // For tests and the labelled demo tools: make every save fail.

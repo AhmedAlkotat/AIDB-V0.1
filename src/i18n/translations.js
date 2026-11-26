@@ -24,6 +24,7 @@ export const translations = Object.freeze({
       closeMenu: 'إغلاق القائمة',
       sections: {
         main: 'مساحة العمل',
+        admin: 'الإدارة',
         system: 'النظام',
       },
       dashboard: 'لوحة التحكم',
@@ -32,6 +33,7 @@ export const translations = Object.freeze({
       corrections: 'مستندات تحتاج إلى تصحيح',
       templates: 'قوالب المستندات',
       settings: 'الإعدادات',
+      adminEmployees: 'إدارة الموظفين',
       logout: 'تسجيل الخروج',
     },
     header: {
@@ -44,9 +46,36 @@ export const translations = Object.freeze({
       employee: 'موظف',
       orgAdmin: 'مدير المؤسسة',
     },
-    demoUser: {
-      name: 'مستخدم تجريبي',
-      initials: 'م ت',
+    auth: {
+      loading: 'جارٍ التحقق من الجلسة…',
+      login: {
+        title: 'تسجيل الدخول',
+        subtitle: 'سجّل الدخول لمتابعة العمل على المستندات.',
+        identifier: 'اسم المستخدم',
+        password: 'كلمة المرور',
+        submit: 'تسجيل الدخول',
+        submitting: 'جارٍ تسجيل الدخول…',
+      },
+      errors: {
+        missingFields: 'أدخل اسم المستخدم وكلمة المرور.',
+        invalidCredentials: 'اسم المستخدم أو كلمة المرور غير صحيحة.',
+        accountDisabled: 'هذا الحساب معطّل. تواصل مع المدير.',
+        notConnected: 'تسجيل الدخول غير متاح بعد: الخادم غير متصل بالواجهة.',
+        network: 'تعذر الوصول إلى الخادم. تحقق من الاتصال وحاول مرة أخرى.',
+        unknown: 'حدث خطأ غير متوقع. حاول مرة أخرى.',
+        sessionExpired: 'انتهت جلستك. سجّل الدخول مرة أخرى.',
+      },
+      initFailed: {
+        title: 'تعذر التحقق من الجلسة',
+        text: 'لم نتمكن من التحقق من حالة تسجيل الدخول. تحقق من الاتصال ثم أعد المحاولة.',
+        retry: 'إعادة المحاولة',
+      },
+      dev: {
+        badge: 'للتطوير فقط',
+        title: 'حسابات تجريبية',
+        note: 'تسجيل الدخول التجريبي موجود في نسخة التطوير فقط، وهذه الحسابات غير حقيقية.',
+        fillAs: 'تعبئة بيانات: {role}',
+      },
     },
     dashboard: {
       welcomeTitle: 'مرحبًا بك، {name}',
@@ -557,6 +586,13 @@ export const translations = Object.freeze({
       settings: {
         description: 'ستتيح هذه الصفحة إدارة إعدادات الحساب وتفضيلات النظام.',
       },
+      forbidden: {
+        title: 'لا تملك صلاحية الوصول',
+        description: 'هذه الصفحة غير متاحة لدورك الحالي. عد إلى لوحة التحكم أو تواصل مع المدير.',
+      },
+      adminEmployees: {
+        description: 'ستتيح هذه الصفحة للمدير إنشاء حسابات الموظفين وإعادة تعيين كلمات مرورهم وتعطيل الحسابات وإعادة تفعيلها.',
+      },
       notFound: {
         title: 'الصفحة غير موجودة',
         description: 'تعذر العثور على الصفحة المطلوبة. تحقق من الرابط أو عد إلى لوحة التحكم.',
@@ -584,6 +620,7 @@ export const translations = Object.freeze({
       closeMenu: 'Close menu',
       sections: {
         main: 'Workspace',
+        admin: 'Administration',
         system: 'System',
       },
       dashboard: 'Dashboard',
@@ -592,6 +629,7 @@ export const translations = Object.freeze({
       corrections: 'Documents Requiring Correction',
       templates: 'Document Templates',
       settings: 'Settings',
+      adminEmployees: 'Employee management',
       logout: 'Logout',
     },
     header: {
@@ -604,9 +642,36 @@ export const translations = Object.freeze({
       employee: 'Employee',
       orgAdmin: 'Organization Administrator',
     },
-    demoUser: {
-      name: 'Demo User',
-      initials: 'DU',
+    auth: {
+      loading: 'Checking your session…',
+      login: {
+        title: 'Sign in',
+        subtitle: 'Sign in to continue working on documents.',
+        identifier: 'Username',
+        password: 'Password',
+        submit: 'Sign in',
+        submitting: 'Signing in…',
+      },
+      errors: {
+        missingFields: 'Enter your username and password.',
+        invalidCredentials: 'The username or password is incorrect.',
+        accountDisabled: 'This account is deactivated. Contact the Admin.',
+        notConnected: 'Sign-in is not available yet: the server is not connected to the interface.',
+        network: 'The server could not be reached. Check the connection and try again.',
+        unknown: 'An unexpected error occurred. Please try again.',
+        sessionExpired: 'Your session has ended. Please sign in again.',
+      },
+      initFailed: {
+        title: 'Could not check your session',
+        text: 'We could not check whether you are signed in. Check the connection and try again.',
+        retry: 'Try again',
+      },
+      dev: {
+        badge: 'Development only',
+        title: 'Mock accounts',
+        note: 'Mock sign-in exists only in development builds. These accounts are not real.',
+        fillAs: 'Fill in as {role}',
+      },
     },
     dashboard: {
       welcomeTitle: 'Welcome, {name}',
@@ -761,6 +826,13 @@ export const translations = Object.freeze({
       },
       settings: {
         description: 'This page will let you manage account settings and system preferences.',
+      },
+      forbidden: {
+        title: 'Access denied',
+        description: 'This page is not available for your role. Return to the dashboard or contact the Admin.',
+      },
+      adminEmployees: {
+        description: 'This page will let the Admin create employee accounts, reset passwords, and deactivate or reactivate accounts.',
       },
       notFound: {
         title: 'Page not found',

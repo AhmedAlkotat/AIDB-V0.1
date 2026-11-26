@@ -128,6 +128,7 @@ const h = React.createElement
 
 let server
 let LanguageProvider
+let AuthContext
 let router
 let documentStore
 const loaded = new Map()
@@ -136,6 +137,7 @@ before(async () => {
   const { createServer } = await import(pathToFileURL(`${root}/node_modules/vite/dist/node/index.js`).href)
   server = await createServer({ root, appType: 'custom', server: { middlewareMode: true, hmr: false }, logLevel: 'error', optimizeDeps: { noDiscovery: true } })
   ;({ LanguageProvider } = await server.ssrLoadModule('/src/contexts/LanguageProvider.jsx'))
+  ;({ AuthContext } = await server.ssrLoadModule('/src/contexts/authContext.js'))
   router = await server.ssrLoadModule('react-router')
   ;({ documentStore } = await server.ssrLoadModule('/src/services/documentStore.js'))
 })
@@ -144,11 +146,15 @@ after(async () => {
   await server?.close()
 })
 
-async function renderRoute(file, path, route = path) {
+// The pages read the signed-in user from the authentication context (Batch A); these tests
+// sign in the demo employee, as the pages assumed before.
+const signedInEmployee = { status: 'authenticated', user: { id: DEMO_USER.id, displayName: 'موظف تجريبي', role: DEMO_USER.role } }
+
+async function renderRoute(file, path, route = path, auth = signedInEmployee) {
   if (!loaded.has(file)) loaded.set(file, await server.ssrLoadModule(file))
   const Page = loaded.get(file).default
   return renderToString(
-    h(LanguageProvider, null, h(router.MemoryRouter, { initialEntries: [path] }, h(router.Routes, null, h(router.Route, { element: h('div', null, h(Page)), path: route })))),
+    h(LanguageProvider, null, h(AuthContext.Provider, { value: auth }, h(router.MemoryRouter, { initialEntries: [path] }, h(router.Routes, null, h(router.Route, { element: h('div', null, h(Page)), path: route }))))),
   )
 }
 

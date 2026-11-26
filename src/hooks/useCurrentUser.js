@@ -1,11 +1,11 @@
-import { DEMO_USER } from '../data/mock/demoUser.mock.js'
-import { useCurrentRole } from './useReviewSession.js'
+import { useAuth } from './useAuth.js'
 
-// The signed-in user: { id, role }. Authentication does not exist yet, so this is the
-// DEMO user (with the optional VITE_DEMO_ROLE override for manual testing). It only
-// drives the simulated visibility rules of the interface (domain/document/access.js);
-// it is not a security boundary.
+// The signed-in user: { id, displayName, role }. Only call it below the route guards
+// (RequireAuth), where a user always exists. The role drives what the interface shows
+// (domain/document/access.js, navigation); it is not a security boundary, the backend
+// must enforce permissions itself.
 export function useCurrentUser() {
-  const role = useCurrentRole()
-  return { id: DEMO_USER.id, role }
+  const { user } = useAuth()
+  if (!user) throw new Error('useCurrentUser needs a signed-in user (use it inside RequireAuth).')
+  return user
 }

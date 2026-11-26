@@ -1,5 +1,7 @@
 // Single place for application URLs.
 export const ROUTES = Object.freeze({
+  login: '/login',
+  logout: '/logout',
   dashboard: '/',
   upload: '/upload',
   archive: '/archive',
@@ -7,6 +9,7 @@ export const ROUTES = Object.freeze({
   reviewDocument: '/corrections/review/:documentId',
   templates: '/templates',
   settings: '/settings',
+  adminEmployees: '/admin/employees',
 })
 
 // Where "back" goes from a document's review page: an approved document came from the

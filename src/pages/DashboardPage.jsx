@@ -3,6 +3,7 @@ import { DemoBadge } from '../components/common/DemoBadge.jsx'
 import { Icon } from '../components/common/Icon.jsx'
 import { StatCard } from '../components/common/StatCard.jsx'
 import { DEMO_DASHBOARD_STATS } from '../data/mock/dashboardStats.mock.js'
+import { useCurrentUser } from '../hooks/useCurrentUser.js'
 import { useTranslation } from '../hooks/useTranslation.js'
 import { ROUTES } from '../routes/paths.js'
 
@@ -15,6 +16,7 @@ const summaryCards = [
 
 export default function DashboardPage() {
   const { t, formatNumber } = useTranslation()
+  const { displayName } = useCurrentUser()
   // Demo data only; see src/data/mock/.
   const stats = DEMO_DASHBOARD_STATS
 
@@ -24,7 +26,7 @@ export default function DashboardPage() {
         <div className="welcome-card__text">
           <p className="welcome-card__eyebrow">{t('app.tagline')}</p>
           <h2 className="welcome-card__title">
-            {t('dashboard.welcomeTitle', { name: t('demoUser.name') })}
+            {t('dashboard.welcomeTitle', { name: displayName })}
           </h2>
           <p className="welcome-card__subtitle">{t('dashboard.welcomeSubtitle')}</p>
         </div>

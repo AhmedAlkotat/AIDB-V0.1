@@ -1,0 +1,145 @@
+/* Sign-in page and the full-page authentication states (outside the app shell). */
+
+.auth-screen {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-block-size: 100vh;
+  padding: 72px 16px 32px;
+  background: var(--color-bg);
+}
+
+.auth-screen__language {
+  position: absolute;
+  inset-block-start: 16px;
+  inset-inline-end: 16px;
+}
+
+.auth-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.auth-card {
+  inline-size: 100%;
+  max-inline-size: 440px;
+  overflow: hidden;
+}
+
+.auth-card--message {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+}
+
+.auth-card__brand {
+  padding: 20px 24px;
+  background: var(--color-navy);
+  color: #fff;
+}
+
+.auth-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 28px 24px 24px;
+}
+
+.auth-card__title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--color-navy);
+}
+
+.auth-card__subtitle {
+  margin-block-start: -10px;
+  color: var(--color-text-muted);
+  font-size: 0.92rem;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.auth-form__submit {
+  inline-size: 100%;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-field__label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-navy);
+}
+
+.form-field__input {
+  inline-size: 100%;
+  min-block-size: 44px;
+  padding: 8px 12px;
+  border: 1px solid #c7d1de;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  text-align: start;
+}
+
+.form-field__input:hover:not(:disabled) {
+  border-color: var(--color-teal);
+}
+
+.form-field__input:focus-visible {
+  outline-offset: 0;
+  border-color: var(--color-teal-700);
+}
+
+.form-field__input[aria-invalid='true'] {
+  border-color: var(--color-danger);
+  background: var(--color-danger-50);
+}
+
+.form-field__input:disabled {
+  background: var(--color-navy-50);
+  cursor: not-allowed;
+}
+
+/* Development-only block with the mock accounts (never rendered in production builds). */
+.auth-dev {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px dashed #c7d1de;
+  border-radius: var(--radius-sm);
+  background: var(--color-navy-50);
+}
+
+.auth-dev__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-navy);
+}
+
+.auth-dev__note {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.auth-dev__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
