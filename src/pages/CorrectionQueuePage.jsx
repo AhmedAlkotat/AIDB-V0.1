@@ -7,11 +7,12 @@ import { selectCorrectionQueue, stateOf } from '../domain/document/access.js'
 import { DOCUMENT_STATE } from '../domain/document/lifecycle.js'
 import { useCurrentUser } from '../hooks/useCurrentUser.js'
 import { useDocumentDeletion } from '../hooks/useDocumentDeletion.jsx'
-import { useDocumentList } from '../hooks/useDocumentList.js'
+import { useDocumentListState } from '../hooks/useDocumentListState.js'
 import { useDocumentRetry } from '../hooks/useDocumentRetry.jsx'
 import { getDocumentQueuePosition, useProcessingQueue } from '../hooks/useProcessingQueue.js'
 import { useTranslation } from '../hooks/useTranslation.js'
 import { ROUTES } from '../routes/paths.js'
+import { documentService } from '../services/documentService.js'
 
 const STATE_FILTERS = [DOCUMENT_STATE.pending, DOCUMENT_STATE.processing, DOCUMENT_STATE.readyForReview, DOCUMENT_STATE.failed, DOCUMENT_STATE.manualEditing]
 
@@ -22,11 +23,13 @@ const STATE_FILTERS = [DOCUMENT_STATE.pending, DOCUMENT_STATE.processing, DOCUME
 // (never an automatic redirect) says when a document is ready (decisions 2 and 3). Opening one goes to its
 // own review page (the editor is NOT embedded here). Approved documents are in the archive.
 //
-// Until a backend exists the queue lists the documents held in this browser tab's memory (documentStore).
+// Until a backend exists the queue lists the documents held in this browser tab's memory (the development simulation
+// behind the document service).
 export default function CorrectionQueuePage() {
   const { t, formatNumber } = useTranslation()
   const user = useCurrentUser()
-  const all = selectCorrectionQueue(useDocumentList(), user)
+  const list = useDocumentListState()
+  const all = selectCorrectionQueue(list.items, user)
   const deletion = useDocumentDeletion()
   const retry = useDocumentRetry()
   const queue = useProcessingQueue()
@@ -52,10 +55,12 @@ export default function CorrectionQueuePage() {
       {deletion.feedback}
       {retry.feedback}
 
-      <Alert tone="info" title={t('queue.temporaryTitle')}>
-        <p>{t('queue.temporaryNote')}</p>
-        <p>{t('queue.simulatedNote')}</p>
-      </Alert>
+      {documentService.isMock && (
+        <Alert tone="info" title={t('queue.temporaryTitle')}>
+          <p>{t('queue.temporaryNote')}</p>
+          <p>{t('queue.simulatedNote')}</p>
+        </Alert>
+      )}
 
       {queue.blocked === 'storageFull' && (
         <Alert tone="warning" title={t('queue.pausedTitle')}>
@@ -79,7 +84,21 @@ export default function CorrectionQueuePage() {
         </div>
       )}
 
-      {items.length === 0 ? (
+      {list.status === 'loading' ? (
+        <p className="auth-loading" role="status">
+          <span className="spinner" aria-hidden="true" />
+          {t('common.loading')}
+        </p>
+      ) : list.status === 'error' ? (
+        <Alert tone="error" title={t('common.loadFailed')}>
+          <p>
+            <button type="button" className="button button--secondary button--sm" onClick={() => list.reload()}>
+              <Icon name="refresh" size={16} />
+              {t('common.retry')}
+            </button>
+          </p>
+        </Alert>
+      ) : items.length === 0 ? (
         <section className="card queue-empty">
           <p>{all.length === 0 ? t('queue.empty') : t('queue.emptyFiltered')}</p>
           <Link className="button button--primary" to={ROUTES.upload}>

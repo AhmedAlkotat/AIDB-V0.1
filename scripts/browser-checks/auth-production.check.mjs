@@ -41,11 +41,16 @@ await runChecks('Production build has no mock authentication', async ({ browser,
     check(`the former mock account "${identifier}" cannot sign in`, (await text(page, '.alert--error')).includes('الخادم غير متصل') && !(await exists(page, '.user-badge')))
   }
 
-  const bundle = await page.eval(`fetch(document.querySelector('script[type=module]').src).then((r) => r.text())`)
-  check('the entry bundle contains no mock accounts or passwords', !/employee-dev|admin-dev|disabled-dev|aidp\.dev\.mockSession|aidp\.dev\.mockAccounts|aidp\.dev\.mockSystem|bkp-seed|aud-seed|ntf-seed/.test(bundle))
+  // Since Batch E the entry script only checks the build configuration and then loads the application as a second chunk
+  // (src/main.jsx -> bootstrap.jsx), so EVERY script the page loaded is scanned, not just the first one.
+  const scriptUrls = await page.eval(`performance.getEntriesByType('resource').map((entry) => entry.name).filter((name) => name.includes('.js') && !name.includes('pdf.worker'))`)
+  const bundle = (await Promise.all(scriptUrls.map((url) => fetch(url).then((response) => response.text())))).join(' ')
+  check('the page loaded more than the entry script (the application chunk is scanned too)', bundle.length > 100000)
+  check('the bundle contains no mock accounts or passwords', !/employee-dev|admin-dev|disabled-dev|aidp\.dev\.mockSession|aidp\.dev\.mockAccounts|aidp\.dev\.mockSystem|bkp-seed|aud-seed|ntf-seed/.test(bundle))
   // Batch D: the simulated document workflow (queue, lock, approval, export, templates, demonstration documents).
-  check('the entry bundle contains no simulated document workflow: no mock queue, lock, export or template data', !/sim-other-editor|tpl-demo|simulateOtherEditor|releaseOtherEditor|failNextDocument|setInsufficientSpace|failNextExport|createMockProcessingQueue|createMockDocumentWorkflowService/.test(bundle))
-  check('the entry bundle contains no demonstration documents', !/demo-review-8-pages|demo-approved-3-pages|مستند تجريبي للمراجعة|AIDP DEMO/.test(bundle))
+  check('the bundle contains no simulated document workflow: no mock queue, lock, export or template data', !/sim-other-editor|tpl-demo|simulateOtherEditor|releaseOtherEditor|failNextDocument|setInsufficientSpace|failNextExport|createMockProcessingQueue|createMockDocumentWorkflowService/.test(bundle))
+  check('the bundle contains no simulated document service, store or store change feed', !/createMockDocumentService|createMemoryDocumentStore|setSimulatedFailure|isSimulatingFailure|forceFailure|MOCK_OCR_FAILED_FIXTURE/.test(bundle))
+  check('the bundle contains no demonstration documents', !/demo-review-8-pages|demo-approved-3-pages|مستند تجريبي للمراجعة|AIDP DEMO/.test(bundle))
 
   // A forged development account store must not create accounts either.
   await page.eval(`(() => { const el = document.querySelector('#login-identifier'); el.focus(); el.select() })()`)

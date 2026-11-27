@@ -1,0 +1,1779 @@
+# AIDP — API contract DRAFT (Batch E, Wave 1 / E2)
+#
+# STATUS: PROPOSAL. Nothing in this file is an agreement with the Backend or AI developers.
+# It is derived from the frontend service interfaces (src/services/*), the canonical document
+# model (src/domain/document/*) and the 50 approved decisions (AIDP_50_Decisions.pdf).
+#
+# How to read the extensions (they exist so that tests and reviewers can check the draft):
+#   x-status      confirmed-requirement  the BEHAVIOUR is an approved decision; only the HTTP shape is proposed
+#                 proposed               a technical design proposed by the frontend; needs agreement
+#                 open-question          depends on an unresolved Backend/AI decision (see questions.md)
+#   x-decisions   the approved decision numbers the operation serves
+#   x-service     the frontend service method this operation implements (src/services/*Service.js)
+#   x-permission  who may call it (the SERVER enforces it; frontend role checks only shape the UI)
+#
+# Conventions (all PROPOSED):
+#   - base path /api/v1, JSON UTF-8, ISO-8601 UTC timestamps, opaque string ids
+#   - Authorization: Bearer <access token>  (in memory only in the browser; no localStorage/sessionStorage)
+#   - refresh token: HttpOnly, Secure, SameSite=Strict cookie scoped to /api/v1/auth  (D7, open-question)
+#   - errors: one envelope (components/schemas/ErrorEnvelope), domain codes listed in error-codes.md
+#   - concurrency: every document write carries `baseRevision`; a stale one is refused with 409 revisionConflict
+#   - page isolation: a write names the pages it changes and never touches the others (decision 38)
+
+openapi: 3.0.3
+info:
+  title: AIDP API (draft)
+  version: 0.1.0-draft
+  description: Draft contract between the AIDP frontend and the FastAPI/PostgreSQL backend. Not agreed.
+servers:
+  - url: /api/v1
+    description: Same origin on the local network (decision 21). The base URL is configured at build time (VITE_API_BASE_URL).
+security:
+  - bearerAuth: []
+
+tags:
+  - name: auth
+  - name: employees
+  - name: settings
+  - name: notifications
+  - name: recycle-bin
+  - name: backups
+  - name: audit
+  - name: templates
+  - name: documents
+  - name: queue
+  - name: review
+  - name: locks
+  - name: approval
+  - name: export
+
+paths:
+  # ------------------------------------------------------------------ authentication
+  /auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      summary: Sign in with the identifier and password the Admin created.
+      x-service: authService.login
+      x-status: open-question
+      x-decisions: [16, 18, 19, 20]
+      x-permission: public
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Signed in. The refresh token is set as an HttpOnly cookie.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionResponse' }
+        '400': { $ref: '#/components/responses/InvalidInput' }
+        '401': { $ref: '#/components/responses/InvalidCredentials' }
+        '403': { $ref: '#/components/responses/AccountDisabled' }
+  /auth/refresh:
+    post:
+      tags: [auth]
+      operationId: refreshSession
+      summary: Exchange the refresh cookie for a new access token (also used to restore a session after a reload).
+      x-service: authService.restoreSession
+      x-status: open-question
+      x-decisions: [15, 16]
+      x-permission: refresh cookie
+      security: []
+      responses:
+        '200':
+          description: A new access token and the current user.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionResponse' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      summary: End the session and revoke the refresh token.
+      x-service: authService.logout
+      x-status: open-question
+      x-decisions: [16]
+      x-permission: any signed-in user
+      responses:
+        '204': { description: Signed out. The cookie is cleared. }
+  /auth/session:
+    get:
+      tags: [auth]
+      operationId: getSession
+      summary: The current user (validates the access token; deactivation takes effect immediately, decision 16).
+      x-service: authService.restoreSession
+      x-status: proposed
+      x-decisions: [15, 16]
+      x-permission: any signed-in user
+      responses:
+        '200':
+          description: The signed-in user.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+
+  # ------------------------------------------------------------------ employees (Admin only)
+  /employees:
+    get:
+      tags: [employees]
+      operationId: listEmployees
+      summary: All employee accounts (never deleted, decision 16).
+      x-service: employeeService.listEmployees
+      x-status: confirmed-requirement
+      x-decisions: [16, 20]
+      x-permission: Admin
+      responses:
+        '200':
+          description: The accounts.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Employee' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [employees]
+      operationId: createEmployee
+      summary: Create an account with the initial password (no forced change at first login, decision 18).
+      x-service: employeeService.createEmployee
+      x-status: confirmed-requirement
+      x-decisions: [18, 20]
+      x-permission: Admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmployeeCreate' }
+      responses:
+        '201':
+          description: Created. The password is never returned.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Employee' }
+        '400': { $ref: '#/components/responses/InvalidInput' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/DuplicateIdentifier' }
+  /employees/{employeeId}:
+    patch:
+      tags: [employees]
+      operationId: updateEmployee
+      summary: Change the display name or identifier.
+      x-service: employeeService.updateEmployee
+      x-status: confirmed-requirement
+      x-decisions: [16]
+      x-permission: Admin
+      parameters: [{ $ref: '#/components/parameters/EmployeeId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmployeeUpdate' }
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Employee' }
+        '400': { $ref: '#/components/responses/InvalidInput' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/DuplicateIdentifier' }
+  /employees/{employeeId}/password:
+    put:
+      tags: [employees]
+      operationId: setEmployeePassword
+      summary: Set a new password (only the Admin; no self-service; stored hashed, decisions 17 and 19).
+      x-service: employeeService.setEmployeePassword
+      x-status: confirmed-requirement
+      x-decisions: [17, 19]
+      x-permission: Admin
+      parameters: [{ $ref: '#/components/parameters/EmployeeId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordSet' }
+      responses:
+        '204': { description: Changed. }
+        '400': { $ref: '#/components/responses/InvalidInput' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /employees/{employeeId}/deactivate:
+    post:
+      tags: [employees]
+      operationId: deactivateEmployee
+      summary: Deactivate (no deletion; work is kept; every session of the account is revoked at once, decision 16).
+      x-service: employeeService.deactivateEmployee
+      x-status: confirmed-requirement
+      x-decisions: [16]
+      x-permission: Admin
+      parameters: [{ $ref: '#/components/parameters/EmployeeId' }]
+      responses:
+        '200':
+          description: Deactivated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Employee' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /employees/{employeeId}/reactivate:
+    post:
+      tags: [employees]
+      operationId: reactivateEmployee
+      summary: Reactivate a deactivated account.
+      x-service: employeeService.reactivateEmployee
+      x-status: confirmed-requirement
+      x-decisions: [16]
+      x-permission: Admin
+      parameters: [{ $ref: '#/components/parameters/EmployeeId' }]
+      responses:
+        '200':
+          description: Reactivated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Employee' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ------------------------------------------------------------------ settings and storage
+  /settings:
+    get:
+      tags: [settings]
+      operationId: getSettings
+      summary: All system settings. Every default is PROVISIONAL (decisions 34, 36 and 48 say so).
+      x-service: settingsService.getSettings
+      x-status: confirmed-requirement
+      x-decisions: [27, 28, 31, 33, 34, 36, 44, 48]
+      x-permission: Admin
+      responses:
+        '200':
+          description: The settings.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Settings' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /settings/limits:
+    get:
+      tags: [settings]
+      operationId: getLimits
+      summary: The upload limits (the frontend checks them too; the server always checks again).
+      x-service: settingsService.getLimits
+      x-status: confirmed-requirement
+      x-decisions: [36, 48]
+      x-permission: any signed-in user
+      responses:
+        '200':
+          description: The limits.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UploadLimits' }
+  /settings/{section}/preview:
+    post:
+      tags: [settings]
+      operationId: previewSettingsImpact
+      summary: What saving the section would delete (recycle-bin items or audit entries that would expire).
+      x-service: settingsService.previewImpact
+      x-status: proposed
+      x-decisions: [33, 44]
+      x-permission: Admin
+      parameters: [{ $ref: '#/components/parameters/SettingsSection' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200':
+          description: The impact.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SettingsImpact' }
+        '400': { $ref: '#/components/responses/InvalidInput' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /settings/{section}:
+    put:
+      tags: [settings]
+      operationId: updateSettingsSection
+      summary: Replace one settings section. Validated by the server.
+      x-service: settingsService.updateSection
+      x-status: confirmed-requirement
+      x-decisions: [27, 28, 31, 33, 34, 36, 44, 48]
+      x-permission: Admin
+      parameters: [{ $ref: '#/components/parameters/SettingsSection' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200':
+          description: All settings after the change.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Settings' }
+        '400': { $ref: '#/components/responses/InvalidInput' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /storage/status:
+    get:
+      tags: [settings]
+      operationId: getStorageStatus
+      summary: Measured storage (never simulated on the real server) and the thresholds.
+      x-service: storageService.getStatus
+      x-status: confirmed-requirement
+      x-decisions: [34, 35]
+      x-permission: Admin
+      responses:
+        '200':
+          description: The status.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StorageStatus' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  # ------------------------------------------------------------------ notifications
+  /notifications:
+    get:
+      tags: [notifications]
+      operationId: listNotifications
+      summary: The caller's notifications. An employee gets their own documents' only; the Admin also gets system alerts.
+      x-service: notificationService.list
+      x-status: confirmed-requirement
+      x-decisions: [2, 3, 35]
+      x-permission: any signed-in user
+      responses:
+        '200':
+          description: Newest first. A notification only OFFERS a link; it never navigates (decision 3).
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Notification' }
+  /notifications/{notificationId}/read:
+    post:
+      tags: [notifications]
+      operationId: markNotificationRead
+      summary: Mark one notification read for the caller.
+      x-service: notificationService.markRead
+      x-status: proposed
+      x-decisions: [3]
+      x-permission: any signed-in user
+      parameters: [{ $ref: '#/components/parameters/NotificationId' }]
+      responses:
+        '204': { description: Marked. }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /notifications/read-all:
+    post:
+      tags: [notifications]
+      operationId: markAllNotificationsRead
+      summary: Mark every visible notification read for the caller.
+      x-service: notificationService.markAllRead
+      x-status: proposed
+      x-decisions: [3]
+      x-permission: any signed-in user
+      responses:
+        '204': { description: Marked. }
+
+  # ------------------------------------------------------------------ recycle bin (Admin only)
+  /recycle-bin:
+    get:
+      tags: [recycle-bin]
+      operationId: listDeletedDocuments
+      summary: Soft-deleted documents with deletedAt and purgeAt.
+      x-service: recycleBinService.listDeleted
+      x-status: confirmed-requirement
+      x-decisions: [43, 44]
+      x-permission: Admin
+      responses:
+        '200':
+          description: The deleted documents.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DeletedDocument' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /documents/{documentId}/trash:
+    post:
+      tags: [recycle-bin]
+      operationId: moveDocumentToBin
+      summary: Soft delete after the Admin's explicit confirmation. Queued/running work is cancelled or finished safely; completed pages are kept (decision 45).
+      x-service: recycleBinService.moveToBin
+      x-status: confirmed-requirement
+      x-decisions: [42, 43, 45]
+      x-permission: Admin
+      parameters: [{ $ref: '#/components/parameters/DocumentId' }]
+      responses:
+        '200':
+          description: Moved.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [cancelledProcessing]
+                properties:
+                  cancelledProcessing: { type: boolean }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /recycle-bin/{documentId}/restore:
+    post:
+      tags: [recycle-bin]
+      operationId: restoreDocument
+      summary: Restore from the bin.
+      x-service: recycleBinService.restore
+      x-status: confirmed-requirement
+      x-decisions: [43, 44]
+      x-permission: Admin
+      parameters: [{ $ref: '#/components/parameters/DocumentId' }]
+      responses:
+        '204': { description: Restored. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /recycle-bin/{documentId}:
+    delete:
+      tags: [recycle-bin]
+      operationId: purgeDocument
+      summary: Permanent deletion of a document that is in the bin (extra confirmation in the UI).
+      x-service: recycleBinService.deletePermanently
+      x-status: confirmed-requirement
+      x-decisions: [43, 44]
+      x-permission: Admin
+      parameters: [{ $ref: '#/components/parameters/DocumentId' }]
+      responses:
+        '204': { description: Deleted for good. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ------------------------------------------------------------------ backups (Admin only)
+  /backups:
+    get:
+      tags: [backups]
+      operationId: listBackups
+      summary: The backups.
+      x-service: backupService.listBackups
+      x-status: confirmed-requirement
+      x-decisions: [25, 26, 28]
+      x-permission: Admin
+      responses:
+        '200':
+          description: The backups, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Backup' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [backups]
+      operationId: createBackup
+      summary: Manual backup (encrypted; the key is held separately by the institution, decision 29).
+      x-service: backupService.createBackup
+      x-status: open-question
+      x-decisions: [25, 26, 29]
+      x-permission: Admin
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Backup' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '423': { $ref: '#/components/responses/Blocked' }
+  /backups/{backupId}/protection:
+    put:
+      tags: [backups]
+      operationId: setBackupProtected
+      summary: Protect or unprotect a backup (protected ones are never removed by retention, decision 28).
+      x-service: backupService.setProtected
+      x-status: confirmed-requirement
+      x-decisions: [28]
+      x-permission: Admin
+      parameters: [{ $ref: '#/components/parameters/BackupId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [protected]
+              properties:
+                protected: { type: boolean }
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Backup' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /backups/{backupId}/verify:
+    post:
+      tags: [backups]
+      operationId: verifyBackup
+      summary: 'Restore test: integrity and decryption, without changing anything (decision 26).'
+      x-service: backupService.verifyBackup
+      x-status: open-question
+      x-decisions: [26, 30]
+      x-permission: Admin
+      parameters: [{ $ref: '#/components/parameters/BackupId' }]
+      responses:
+        '200':
+          description: The checks.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BackupVerification' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /backups/{backupId}/restore:
+    post:
+      tags: [backups]
+      operationId: restoreBackup
+      summary: Verify, take a protective backup first, block writes, restore. Cancelled if the protective backup fails (decision 30).
+      x-service: backupService.restoreBackup
+      x-status: open-question
+      x-decisions: [29, 30]
+      x-permission: Admin
+      parameters: [{ $ref: '#/components/parameters/BackupId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [acknowledged]
+              properties:
+                acknowledged:
+                  type: boolean
+                  description: The Admin explicitly confirmed that newer data may be lost.
+      responses:
+        '200':
+          description: The steps, in order, each done / failed / skipped.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RestoreResult' }
+        '400': { $ref: '#/components/responses/InvalidInput' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '423': { $ref: '#/components/responses/Blocked' }
+
+  # ------------------------------------------------------------------ audit log (Admin only, NO export)
+  /audit-log:
+    get:
+      tags: [audit]
+      operationId: listAuditEntries
+      summary: View, search and filter the audit log. There is deliberately NO export operation (decision 32).
+      x-service: auditLogService.listEntries
+      x-status: confirmed-requirement
+      x-decisions: [31, 32, 33]
+      x-permission: Admin
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+        - { name: category, in: query, schema: { $ref: '#/components/schemas/AuditCategory' } }
+        - { name: outcome, in: query, schema: { type: string, enum: [success, failure] } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: q, in: query, description: Free-text search over actor and subject., schema: { type: string } }
+      responses:
+        '200':
+          description: A page of entries, newest first.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuditPage' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  # ------------------------------------------------------------------ templates
+  /templates:
+    get:
+      tags: [templates]
+      operationId: listTemplates
+      summary: The layouts the system recognises (read-only; creation/editing deferred until the AI developer is consulted).
+      x-service: templateService.list
+      x-status: open-question
+      x-decisions: []
+      x-permission: any signed-in user
+      responses:
+        '200':
+          description: The templates. Unknown layouts are never rejected.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Template' }
+
+  # ------------------------------------------------------------------ documents
+  /documents:
+    post:
+      tags: [documents]
+      operationId: registerDocument
+      summary: >-
+        Register one document when the user presses "Start processing" (decision 41). The server checks type, size,
+        selected pages and free space, stores the ORIGINAL (whole file), registers Pending and only then queues it.
+      x-service: documentWorkflowService.registerDocument
+      x-status: confirmed-requirement
+      x-decisions: [1, 35, 36, 37, 41, 48]
+      x-permission: any signed-in user (becomes the owner)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/RegisterDocumentRequest' }
+      responses:
+        '202':
+          description: Stored and queued. Closing the browser does not cancel the work (decision 2).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegisterDocumentResponse' }
+        '400': { $ref: '#/components/responses/InvalidInput' }
+        '413': { $ref: '#/components/responses/FileTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedFileType' }
+        '422': { $ref: '#/components/responses/TooManyPages' }
+        '507': { $ref: '#/components/responses/StorageFull' }
+    get:
+      tags: [documents]
+      operationId: listDocuments
+      summary: >-
+        Query documents the caller may see (employee: own; Admin: all; the server enforces it). Soft-deleted documents are
+        excluded. The archive lists every state except Pending (decision 12); the correction queue every state except Approved.
+      x-service: documentService.listPage
+      x-status: proposed
+      x-decisions: [9, 12, 15, 43]
+      x-permission: any signed-in user (scoped by ownership)
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+        - { name: view, in: query, description: 'archive = every state except Pending; queue = every state except Approved; all = no state restriction.', schema: { type: string, enum: [all, archive, queue], default: all } }
+        - { name: q, in: query, description: Case-insensitive search on the document name., schema: { type: string } }
+        - { name: type, in: query, description: 'A functional class, or "unclassified".', schema: { type: string } }
+        - { name: state, in: query, schema: { $ref: '#/components/schemas/DocumentState' } }
+        - { name: uploadedFrom, in: query, description: 'Upload date (the primary archive date filter), inclusive.', schema: { type: string, format: date } }
+        - { name: uploadedTo, in: query, schema: { type: string, format: date } }
+        - { name: sort, in: query, schema: { type: string, enum: [uploadedAt_desc, uploadedAt_asc, name_asc], default: uploadedAt_desc } }
+      responses:
+        '200':
+          description: A page of document summaries.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentPage' }
+        '400': { $ref: '#/components/responses/InvalidInput' }
+  /documents/{documentId}:
+    get:
+      tags: [documents]
+      operationId: getDocument
+      summary: >-
+        The document with its canonical content (every selected page: elements, optional coordinates, the preserved
+        original AI extraction, review status), its revision and undecided candidates.
+      x-service: documentService.getDocument
+      x-status: proposed
+      x-decisions: [4, 5, 15, 38, 40, 49, 50]
+      x-permission: owner or Admin
+      parameters: [{ $ref: '#/components/parameters/DocumentId' }]
+      responses:
+        '200':
+          description: The document.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentRecord' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /documents/{documentId}/status:
+    get:
+      tags: [documents]
+      operationId: getDocumentStatus
+      summary: >-
+        A cheap summary for POLLING (state, queue position, per-page processing, revision). Polling first, SSE later (D8):
+        a future event stream would deliver this same payload.
+      x-service: documentService.getSummary
+      x-status: proposed
+      x-decisions: [2, 3, 22, 23]
+      x-permission: owner or Admin
+      parameters: [{ $ref: '#/components/parameters/DocumentId' }]
+      responses:
+        '200':
+          description: The summary.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentSummary' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /documents/{documentId}/meta:
+    get:
+      tags: [documents]
+      operationId: getDocumentMeta
+      summary: The bookkeeping without the content (attempt log, version summaries, accepted-result counts, recognised class/template).
+      x-service: documentService.getMeta
+      x-status: proposed
+      x-decisions: [11, 14, 40]
+      x-permission: owner or Admin
+      parameters: [{ $ref: '#/components/parameters/DocumentId' }]
+      responses:
+        '200':
+          description: The metadata.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentMeta' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /documents/{documentId}/original:
+    get:
+      tags: [documents]
+      operationId: getDocumentOriginal
+      summary: The COMPLETE original file (every page, also the unselected ones), separate from any export (decisions 37, 46).
+      x-service: documentService.getOriginalFile
+      x-status: confirmed-requirement
+      x-decisions: [37, 46]
+      x-permission: owner or Admin
+      parameters: [{ $ref: '#/components/parameters/DocumentId' }]
+      responses:
+        '200':
+          description: The file as stored (application/pdf, image/jpeg or image/png) with Content-Disposition.
+          content:
+            application/pdf: { schema: { type: string, format: binary } }
+            image/jpeg: { schema: { type: string, format: binary } }
+            image/png: { schema: { type: string, format: binary } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /documents/{documentId}/last-visited-page:
+    put:
+      tags: [review]
+      operationId: setLastVisitedPage
+      summary: Remember the page the user was on. Does not change the revision.
+      x-service: documentService.sessionStore.setLastVisitedPage
+      x-status: proposed
+      x-decisions: [38]
+      x-permission: owner or Admin
+      parameters: [{ $ref: '#/components/parameters/DocumentId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pageNumber]
+              properties:
+                pageNumber: { type: integer, minimum: 1 }
+      responses:
+        '204': { description: Stored. }
+        '400': { $ref: '#/components/responses/InvalidInput' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ------------------------------------------------------------------ review: drafts
+  /documents/{documentId}/pages:
+    patch:
+      tags: [review]
+      operationId: saveDocumentPages
+      summary: >-
+        Save a draft (automatic and manual saving are the same call, decision 13). Writes ONLY the named pages (page
+        isolation, decision 38) and is all-or-nothing. The server checks the edit lock (decision 47) and `baseRevision`.
+        Saving is never approval.
+      x-service: documentService.sessionStore.savePages
+      x-status: proposed
+      x-decisions: [5, 13, 38, 47, 49]
+      x-permission: lock holder
+      parameters: [{ $ref: '#/components/parameters/DocumentId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SavePagesRequest' }
+      responses:
+        '200':
+          description: Stored; the new revision.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RevisionResponse' }
+        '400': { $ref: '#/components/responses/InvalidInput' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  # ------------------------------------------------------------------ queue and processing
+  /uploads/availability:
+    get:
+      tags: [queue]
+      operationId: getUploadAvailability
+      summary: Whether the server would take an upload now (not when storage is full, decision 35).
+      x-service: documentWorkflowService.getUploadAvailability
+      x-status: confirmed-requirement
+      x-decisions: [35]
+      x-permission: any signed-in user
+      responses:
+        '200':
+          description: The answer.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UploadAvailability' }
+  /queue:
+    get:
+      tags: [queue]
+      operationId: getQueue
+      summary: The central FIFO queue as the caller may see it (own jobs; the Admin all). No priority by role (decision 23).
+      x-service: documentWorkflowService.getQueue
+      x-status: confirmed-requirement
+      x-decisions: [22, 23, 24, 35]
+      x-permission: any signed-in user (scoped by ownership)
+      responses:
+        '200':
+          description: The jobs and whether the queue is paused.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QueueState' }
+  /documents/{documentId}/retry:
+    post:
+      tags: [queue]
+      operationId: retryDocument
+      summary: Retry a Failed document WITHOUT a new upload (decision 11). A new attempt is logged.
+      x-service: documentWorkflowService.retryDocument
+      x-status: confirmed-requirement
+      x-decisions: [11, 40]
+      x-permission: owner or Admin
+      parameters: [{ $ref: '#/components/parameters/DocumentId' }]
+      responses:
+        '202':
+          description: Queued again.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QueueJob' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '507': { $ref: '#/components/responses/StorageFull' }
+  /documents/{documentId}/pages/{pageNumber}/reprocess:
+    post:
+      tags: [review]
+      operationId: reprocessPage
+      summary: >-
+        Reprocess ONE page through the same queue without affecting other pages (decision 38). Existing results and manual
+        edits stay untouched until a candidate is explicitly accepted. The server checks the edit lock (decision 47).
+      x-service: documentWorkflowService.pageProcessing.extractPage
+      x-status: open-question
+      x-decisions: [22, 38, 40, 47]
+      x-permission: lock holder
+      parameters:
+        - { $ref: '#/components/parameters/DocumentId' }
+        - { $ref: '#/components/parameters/PageNumber' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [baseRevision]
+              properties:
+                baseRevision: { type: integer, minimum: 0 }
+      responses:
+        '202':
+          description: Queued. The result arrives as a candidate (poll the status or the jobs list).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QueueJob' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /documents/{documentId}/jobs:
+    get:
+      tags: [review]
+      operationId: listPageJobs
+      summary: The page jobs of this document that are queued or running (a reopened review adopts them).
+      x-service: documentWorkflowService.pageProcessing.getActivePages
+      x-status: proposed
+      x-decisions: [2, 38]
+      x-permission: owner or Admin
+      parameters: [{ $ref: '#/components/parameters/DocumentId' }]
+      responses:
+        '200':
+          description: The active jobs.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/QueueJob' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /documents/{documentId}/pages/{pageNumber}/candidate/accept:
+    post:
+      tags: [review]
+      operationId: acceptCandidate
+      summary: >-
+        Replace the page content with the pending candidate after the user's explicit confirmation. The accepted result is kept
+        in the accepted-result history (decision 40).
+      x-service: documentService.sessionStore.updateMeta
+      x-status: open-question
+      x-decisions: [38, 40]
+      x-permission: lock holder
+      parameters:
+        - { $ref: '#/components/parameters/DocumentId' }
+        - { $ref: '#/components/parameters/PageNumber' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [attempt, baseRevision]
+              properties:
+                attempt: { type: integer, minimum: 1 }
+                baseRevision: { type: integer, minimum: 0 }
+      responses:
+        '200':
+          description: Accepted; the page and the new revision.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PageRevisionResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /documents/{documentId}/pages/{pageNumber}/candidate/reject:
+    post:
+      tags: [review]
+      operationId: rejectCandidate
+      summary: Keep the current content. The candidate's CONTENT is discarded; only the attempt metadata remains (decision 40).
+      x-service: documentService.sessionStore.updateMeta
+      x-status: open-question
+      x-decisions: [38, 40]
+      x-permission: lock holder
+      parameters:
+        - { $ref: '#/components/parameters/DocumentId' }
+        - { $ref: '#/components/parameters/PageNumber' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [attempt]
+              properties:
+                attempt: { type: integer, minimum: 1 }
+      responses:
+        '204': { description: Discarded. }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  # ------------------------------------------------------------------ edit lock
+  /documents/{documentId}/lock:
+    get:
+      tags: [locks]
+      operationId: getLock
+      summary: The current lock, or null. Used to watch for changes (polling first, D8) and by the server's own checks.
+      x-service: editLockService.subscribe
+      x-status: open-question
+      x-decisions: [47]
+      x-permission: owner or Admin
+      parameters: [{ $ref: '#/components/parameters/DocumentId' }]
+      responses:
+        '200':
+          description: The active lock or null.
+          content:
+            application/json:
+              schema:
+                nullable: true
+                allOf: [{ $ref: '#/components/schemas/Lock' }]
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [locks]
+      operationId: acquireLock
+      summary: >-
+        Take the document-level lock. A free, expired or own lock is granted; someone else's active lock is answered with
+        granted:false (not an error), so the UI can show who is editing. The lease is chosen by the SERVER (decision 47).
+      x-service: editLockService.acquire
+      x-status: open-question
+      x-decisions: [47]
+      x-permission: owner or Admin
+      parameters: [{ $ref: '#/components/parameters/DocumentId' }]
+      responses:
+        '200':
+          description: The outcome.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LockOutcome' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [locks]
+      operationId: renewLock
+      summary: Renew the caller's own lock before it expires.
+      x-service: editLockService.renew
+      x-status: open-question
+      x-decisions: [47]
+      x-permission: lock holder
+      parameters: [{ $ref: '#/components/parameters/DocumentId' }]
+      responses:
+        '200':
+          description: The renewed lock.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [lock]
+                properties:
+                  lock: { $ref: '#/components/schemas/Lock' }
+        '409': { $ref: '#/components/responses/LockConflict' }
+    delete:
+      tags: [locks]
+      operationId: releaseLock
+      summary: Release the lock when editing ends. Saved work is untouched.
+      x-service: editLockService.release
+      x-status: open-question
+      x-decisions: [47]
+      x-permission: lock holder
+      parameters: [{ $ref: '#/components/parameters/DocumentId' }]
+      responses:
+        '204': { description: Released (also when nothing was held). }
+
+  # ------------------------------------------------------------------ approval and versions
+  /documents/{documentId}/approval:
+    post:
+      tags: [approval]
+      operationId: approveDocument
+      summary: >-
+        Explicit human approval (decision 6). The server checks ownership/role (39), the edit lock (47), that every selected
+        page is reviewed, that nothing is processing, and that `baseRevision` is the current revision (a stale approval is
+        refused). It creates an immutable version with approver and date (decision 14).
+      x-service: approvalService.requestDocumentApproval
+      x-status: confirmed-requirement
+      x-decisions: [6, 14, 38, 39, 47]
+      x-permission: owner (own documents) or Admin
+      parameters: [{ $ref: '#/components/parameters/DocumentId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [baseRevision]
+              properties:
+                baseRevision: { type: integer, minimum: 0 }
+      responses:
+        '200':
+          description: Approved.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApprovalResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /documents/{documentId}/versions:
+    get:
+      tags: [approval]
+      operationId: listVersions
+      summary: Approved versions with their dates (never deleted by the audit-log retention, decisions 14 and 33).
+      x-service: documentService.getMeta
+      x-status: confirmed-requirement
+      x-decisions: [14, 33]
+      x-permission: owner or Admin
+      parameters: [{ $ref: '#/components/parameters/DocumentId' }]
+      responses:
+        '200':
+          description: Newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/VersionSummary' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [approval]
+      operationId: createNewVersion
+      summary: >-
+        Admin only: from an APPROVED document make an editable new version. It becomes Ready for Review and needs its own
+        approval; the previous approved version is preserved (decision 14). An employee can never do this, not even for their own document.
+      x-service: approvalService.requestNewEditableVersion
+      x-status: confirmed-requirement
+      x-decisions: [14]
+      x-permission: Admin
+      parameters: [{ $ref: '#/components/parameters/DocumentId' }]
+      responses:
+        '200':
+          description: The new draft revision.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RevisionResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /documents/{documentId}/versions/{versionNumber}:
+    get:
+      tags: [approval]
+      operationId: getVersion
+      summary: One approved version with its content (read-only viewing).
+      x-service: documentService.getVersion
+      x-status: confirmed-requirement
+      x-decisions: [14]
+      x-permission: owner or Admin
+      parameters:
+        - { $ref: '#/components/parameters/DocumentId' }
+        - { name: versionNumber, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses:
+        '200':
+          description: The version.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Version' }
+        '404': { $ref: '#/components/responses/NoSuchVersion' }
+
+  # ------------------------------------------------------------------ export (generated by the BACKEND, D3)
+  /documents/{documentId}/exports:
+    post:
+      tags: [export]
+      operationId: exportDocument
+      summary: >-
+        Generate DOCX, XLSX, PDF or JSON on the SERVER from the LATEST APPROVED version: only the selected and approved pages, in
+        original order, with source page numbers; the internal source (AI/manual) is excluded; Arabic/RTL preserved. The frontend
+        only requests, downloads and reports (D3). Synchronous download is the PROPOSAL; an asynchronous job is an open question.
+      x-service: exportService.exportDocument
+      x-status: open-question
+      x-decisions: [8, 15, 46, 49]
+      x-permission: owner or Admin
+      parameters: [{ $ref: '#/components/parameters/DocumentId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [format]
+              properties:
+                format: { type: string, enum: [docx, xlsx, pdf, json] }
+      responses:
+        '200':
+          description: >-
+            The file. Content-Disposition carries the name (RFC 5987 for Arabic); X-AIDP-Page-Count and X-AIDP-Source-Pages
+            (comma-separated) describe the exported pages; X-AIDP-Version the approved version number.
+          content:
+            application/vnd.openxmlformats-officedocument.wordprocessingml.document: { schema: { type: string, format: binary } }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet: { schema: { type: string, format: binary } }
+            application/pdf: { schema: { type: string, format: binary } }
+            application/json: { schema: { type: object, additionalProperties: true } }
+        '400': { $ref: '#/components/responses/InvalidInput' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Short-lived access token, held in memory by the browser (D7). Never persisted by the frontend.
+
+  parameters:
+    DocumentId: { name: documentId, in: path, required: true, schema: { type: string } }
+    EmployeeId: { name: employeeId, in: path, required: true, schema: { type: string } }
+    NotificationId: { name: notificationId, in: path, required: true, schema: { type: string } }
+    BackupId: { name: backupId, in: path, required: true, schema: { type: string } }
+    PageNumber: { name: pageNumber, in: path, required: true, description: The ORIGINAL page number (1-based)., schema: { type: integer, minimum: 1 } }
+    SettingsSection:
+      name: section
+      in: path
+      required: true
+      schema: { type: string, enum: [uploads, recycleBin, audit, backups, storage] }
+    Page: { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+    PageSize: { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+
+  responses:
+    InvalidInput:
+      description: 400 - the request is malformed or breaks a validation rule; `error.fields` names each field.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    Unauthenticated:
+      description: 401 - no valid access token or refresh cookie (error.code unauthenticated or sessionExpired).
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    InvalidCredentials:
+      description: 401 invalidCredentials.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    AccountDisabled:
+      description: 403 accountDisabled.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    Forbidden:
+      description: 403 forbidden - the caller may not do this (the server enforces every permission).
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    NotFound:
+      description: 404 notFound - also used for a document the caller may not see, so existence is not revealed.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    NoSuchVersion:
+      description: 404 noSuchVersion.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    DuplicateIdentifier:
+      description: 409 duplicateIdentifier.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    Conflict:
+      description: 409 - revisionConflict (stale baseRevision), invalidState, notEligible, lockHeld or lockLost.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    LockConflict:
+      description: 409 lockHeld or lockLost.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    Blocked:
+      description: 423 blocked - refused because of the system state (for example a restore is running).
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    FileTooLarge:
+      description: 413 fileTooLarge.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    UnsupportedFileType:
+      description: 415 unsupportedFileType (only PDF, JPG, JPEG, PNG are accepted).
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    TooManyPages:
+      description: 422 tooManyPages.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    StorageFull:
+      description: 507 storageFull or insufficientStorage (decision 35).
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+
+  schemas:
+    # ---- errors
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { $ref: '#/components/schemas/ErrorCode' }
+            message: { type: string, description: A developer message; the UI shows its own translated text. }
+            fields:
+              type: object
+              additionalProperties: { type: string }
+              description: 'field name -> validation code (for example {"identifier": "tooShort"}).'
+            details:
+              type: object
+              additionalProperties: true
+              description: 'Code specific data, for example {"currentRevision": 7} or {"lock": {...}}.'
+            requestId: { type: string }
+    ErrorCode:
+      type: string
+      description: The closed list of domain codes. See error-codes.md.
+      enum:
+        - unauthenticated
+        - sessionExpired
+        - invalidCredentials
+        - accountDisabled
+        - missingFields
+        - forbidden
+        - notFound
+        - invalidInput
+        - blocked
+        - duplicateIdentifier
+        - fileTooLarge
+        - unsupportedFileType
+        - tooManyPages
+        - storageFull
+        - insufficientStorage
+        - invalidState
+        - notEligible
+        - lockHeld
+        - lockLost
+        - noSuchVersion
+        - revisionConflict
+        - unknown
+
+    # ---- authentication and accounts
+    LoginRequest:
+      type: object
+      required: [identifier, password]
+      properties:
+        identifier: { type: string, minLength: 3, maxLength: 64, description: 'Username or e-mail: NOT agreed (open question).' }
+        password: { type: string, minLength: 1, maxLength: 128 }
+    SessionResponse:
+      type: object
+      required: [accessToken, expiresIn, user]
+      properties:
+        accessToken: { type: string }
+        expiresIn: { type: integer, description: Seconds until the access token expires. }
+        user: { $ref: '#/components/schemas/User' }
+    Role:
+      type: string
+      enum: [employee, admin]
+      description: Exactly two roles (decision 39; one institution, one Admin, decision 20). The frontend maps `admin` to its internal `orgAdmin`.
+    User:
+      type: object
+      required: [id, displayName, role]
+      properties:
+        id: { type: string }
+        displayName: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+    Employee:
+      type: object
+      required: [id, displayName, identifier, status, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        displayName: { type: string, maxLength: 100 }
+        identifier: { type: string, minLength: 3, maxLength: 64, pattern: '^[A-Za-z0-9._@-]+$' }
+        status: { type: string, enum: [active, deactivated] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    EmployeeCreate:
+      type: object
+      required: [displayName, identifier, password]
+      properties:
+        displayName: { type: string, maxLength: 100 }
+        identifier: { type: string, minLength: 3, maxLength: 64, pattern: '^[A-Za-z0-9._@-]+$' }
+        password: { type: string, minLength: 8, maxLength: 128 }
+    EmployeeUpdate:
+      type: object
+      properties:
+        displayName: { type: string, maxLength: 100 }
+        identifier: { type: string, minLength: 3, maxLength: 64, pattern: '^[A-Za-z0-9._@-]+$' }
+    PasswordSet:
+      type: object
+      required: [password]
+      properties:
+        password: { type: string, minLength: 8, maxLength: 128 }
+
+    # ---- settings (every value PROVISIONAL, see src/domain/settings/settings.js)
+    UploadLimits:
+      type: object
+      required: [maxFileSizeMb, maxSelectedPages]
+      properties:
+        maxFileSizeMb: { type: integer, minimum: 1, maximum: 1024 }
+        maxSelectedPages: { type: integer, minimum: 1, maximum: 10000 }
+    AuditCategory:
+      type: string
+      enum: [approval, approvedEdits, employeeAccounts, restore, backups, authentication, uploads, processing]
+    Settings:
+      type: object
+      required: [uploads, recycleBin, audit, backups, storage]
+      properties:
+        uploads: { $ref: '#/components/schemas/UploadLimits' }
+        recycleBin:
+          type: object
+          properties:
+            autoDelete: { type: boolean }
+            retentionDays: { type: integer, minimum: 1, maximum: 3650 }
+        audit:
+          type: object
+          properties:
+            categories:
+              type: object
+              additionalProperties: { type: boolean }
+            retentionDays: { type: integer, minimum: 1, maximum: 3650 }
+        backups:
+          type: object
+          properties:
+            scheduleEnabled: { type: boolean }
+            frequency: { type: string, enum: [daily, weekly] }
+            time: { type: string, pattern: '^[0-2][0-9]:[0-5][0-9]$' }
+            weekday: { type: integer, minimum: 0, maximum: 6 }
+            retentionMode: { type: string, enum: [count, days] }
+            retentionCount: { type: integer, minimum: 1, maximum: 365 }
+            retentionDays: { type: integer, minimum: 1, maximum: 3650 }
+            localPath: { type: string, maxLength: 260 }
+            externalPath: { type: string, maxLength: 260 }
+        storage:
+          type: object
+          properties:
+            warningPercent: { type: integer, minimum: 1, maximum: 99 }
+            criticalPercent: { type: integer, minimum: 1, maximum: 99 }
+    SettingsImpact:
+      type: object
+      properties:
+        recycleBinExpiring: { type: integer, minimum: 0 }
+        auditEntriesExpiring: { type: integer, minimum: 0 }
+    StorageStatus:
+      type: object
+      required: [totalBytes, usedBytes, breakdown, thresholds]
+      properties:
+        totalBytes: { type: integer }
+        usedBytes: { type: integer }
+        breakdown:
+          type: object
+          additionalProperties: { type: integer }
+        thresholds:
+          type: object
+          properties:
+            warningPercent: { type: integer }
+            criticalPercent: { type: integer }
+
+    # ---- notifications, bin, backups, audit, templates
+    Notification:
+      type: object
+      required: [id, type, createdAt, read]
+      properties:
+        id: { type: string }
+        type: { type: string, enum: [processingCompleted, processingFailed, storageWarning, storageCritical, storageFull, backupFailed] }
+        createdAt: { type: string, format: date-time }
+        read: { type: boolean, description: Read state FOR THE CALLER. }
+        documentId: { type: string, nullable: true }
+        documentName: { type: string, nullable: true }
+        params: { type: object, additionalProperties: true }
+    DeletedDocument:
+      allOf:
+        - { $ref: '#/components/schemas/DocumentSummary' }
+        - type: object
+          required: [deletedAt]
+          properties:
+            deletedAt: { type: string, format: date-time }
+            deletedBy: { type: string, nullable: true }
+            purgeAt: { type: string, format: date-time, nullable: true, description: null when automatic deletion is off. }
+    Backup:
+      type: object
+      required: [id, type, status, createdAt, protected]
+      properties:
+        id: { type: string }
+        type: { type: string, enum: [scheduled, manual, protective] }
+        status: { type: string, enum: [completed, failed] }
+        createdAt: { type: string, format: date-time }
+        protected: { type: boolean }
+        sizeBytes: { type: integer, nullable: true }
+        location: { type: string, enum: [local, external], nullable: true }
+        encrypted: { type: boolean }
+    BackupVerification:
+      type: object
+      required: [ok, checks]
+      properties:
+        ok: { type: boolean }
+        checks:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              ok: { type: boolean }
+    RestoreResult:
+      type: object
+      required: [ok, steps]
+      properties:
+        ok: { type: boolean }
+        steps:
+          type: array
+          items:
+            type: object
+            required: [step, status]
+            properties:
+              step: { type: string, enum: [verify, protectiveBackup, restore] }
+              status: { type: string, enum: [done, failed, skipped] }
+    AuditEntry:
+      type: object
+      required: [id, at, category, action, outcome]
+      description: Never contains a password or document content.
+      properties:
+        id: { type: string }
+        at: { type: string, format: date-time }
+        category: { $ref: '#/components/schemas/AuditCategory' }
+        action: { type: string }
+        actorId: { type: string, nullable: true }
+        actorName: { type: string, nullable: true }
+        subject: { type: string }
+        outcome: { type: string, enum: [success, failure] }
+    AuditPage:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AuditEntry' }
+        total: { type: integer }
+        page: { type: integer }
+        pageSize: { type: integer }
+    Template:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        documentType: { type: string, nullable: true }
+
+    # ---- documents
+    DocumentState:
+      type: string
+      description: The six approved states (decision 12). Derived by the server; never set by the client.
+      enum: [pending, processing, readyForReview, failed, manualEditing, approved]
+    DocumentClass:
+      type: string
+      nullable: true
+      description: 'Functional nature: invoice, certificate, contract, administrativeRequest, or null (unclassified). Catalogue ownership is an open question; a file extension is never a class.'
+    RegisterDocumentRequest:
+      type: object
+      required: [file, selectedPages]
+      properties:
+        file:
+          type: string
+          format: binary
+          description: The WHOLE original (PDF, JPG, JPEG or PNG). Unselected pages are not failures (decision 37).
+        selectedPages:
+          type: string
+          description: 'JSON array of 1-based page numbers, sorted and unique, for example "[1,3,4]". Images are always "[1]".'
+        totalPages: { type: integer, minimum: 1, description: 'Informational; the server recounts.' }
+    RegisterDocumentResponse:
+      type: object
+      required: [documentId, queuePosition, revision]
+      properties:
+        documentId: { type: string }
+        queuePosition: { type: integer, minimum: 0 }
+        revision: { type: integer, minimum: 0 }
+    DocumentSummary:
+      type: object
+      required: [id, name, ownerId, state, createdAt, updatedAt, revision, totalPages, selectedCount, reviewedCount]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        ownerId: { type: string, nullable: true }
+        state: { $ref: '#/components/schemas/DocumentState' }
+        workflowPhase: { type: string, enum: [pending, processing, completed, failed] }
+        failureCode: { type: string, nullable: true }
+        queuedAt: { type: string, format: date-time, nullable: true }
+        startedAt: { type: string, format: date-time, nullable: true }
+        finishedAt: { type: string, format: date-time, nullable: true }
+        queuePosition: { type: integer, nullable: true }
+        documentType: { $ref: '#/components/schemas/DocumentClass' }
+        template: { $ref: '#/components/schemas/TemplateRef' }
+        fileKind: { type: string, enum: [pdf, image] }
+        approvalStatus: { type: string, enum: [none, approved] }
+        versionCount: { type: integer, minimum: 0 }
+        latestVersion: { type: integer, nullable: true }
+        approvedAt: { type: string, format: date-time, nullable: true }
+        approvedByName: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time, description: The UPLOAD date. }
+        updatedAt: { type: string, format: date-time }
+        revision: { type: integer, minimum: 0 }
+        totalPages: { type: integer, minimum: 1 }
+        selectedCount: { type: integer, minimum: 1 }
+        processingCount: { type: integer, minimum: 0 }
+        processedCount: { type: integer, minimum: 0 }
+        failedPageCount: { type: integer, minimum: 0 }
+        reviewedCount: { type: integer, minimum: 0 }
+        lastVisitedPage: { type: integer, nullable: true }
+        firstSelectedPage: { type: integer, nullable: true, description: The first selected page (the status view of a Pending/Processing document shows it). }
+    TemplateRef:
+      type: object
+      nullable: true
+      properties:
+        id: { type: string }
+        name: { type: string }
+    DocumentPage:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/DocumentSummary' }
+        total: { type: integer, minimum: 0 }
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1 }
+    DocumentRecord:
+      type: object
+      required: [summary, snapshot, revision]
+      properties:
+        summary: { $ref: '#/components/schemas/DocumentSummary' }
+        revision: { type: integer, minimum: 0 }
+        snapshot: { $ref: '#/components/schemas/CanonicalDocument' }
+        candidates:
+          type: object
+          description: 'Undecided reprocessing results keyed by page number (temporary, decision 40).'
+          additionalProperties: { $ref: '#/components/schemas/Candidate' }
+    Candidate:
+      type: object
+      required: [attempt, elements, receivedAt]
+      properties:
+        attempt: { type: integer, minimum: 1 }
+        receivedAt: { type: string, format: date-time }
+        elements:
+          type: array
+          items: { $ref: '#/components/schemas/Element' }
+    DocumentMeta:
+      type: object
+      required: [attempts, versions, acceptedResultCounts, revision]
+      properties:
+        revision: { type: integer, minimum: 0 }
+        attempts:
+          type: array
+          items: { $ref: '#/components/schemas/Attempt' }
+        versions:
+          type: array
+          items: { $ref: '#/components/schemas/VersionSummary' }
+        acceptedResultCounts:
+          type: object
+          additionalProperties: { type: integer }
+          description: 'page number -> how many accepted results are kept (decision 40).'
+        documentType: { $ref: '#/components/schemas/DocumentClass' }
+        template: { $ref: '#/components/schemas/TemplateRef' }
+    Attempt:
+      type: object
+      required: [id, scope, attempt, trigger, status, startedAt]
+      description: Metadata only, never content (decisions 11 and 40; independent of the audit log).
+      properties:
+        id: { type: string }
+        scope: { type: string, enum: [document, page] }
+        pageNumber: { type: integer, nullable: true }
+        attempt: { type: integer, minimum: 1 }
+        trigger: { type: string, enum: [upload, retry, reprocess] }
+        status: { type: string, enum: [succeeded, failed, cancelled, awaitingDecision, accepted, rejected] }
+        startedAt: { type: string, format: date-time }
+        finishedAt: { type: string, format: date-time, nullable: true }
+        errorCode: { type: string, nullable: true }
+        actorId: { type: string, nullable: true }
+    VersionSummary:
+      type: object
+      required: [number, approvedAt, pageCount, isLatest]
+      properties:
+        number: { type: integer, minimum: 1 }
+        approvedAt: { type: string, format: date-time }
+        approvedBy: { type: string, nullable: true }
+        approvedByName: { type: string, nullable: true }
+        pageCount: { type: integer }
+        isLatest: { type: boolean }
+    Version:
+      allOf:
+        - { $ref: '#/components/schemas/VersionSummary' }
+        - type: object
+          required: [snapshot]
+          properties:
+            snapshot: { $ref: '#/components/schemas/CanonicalDocument' }
+    ApprovalResponse:
+      type: object
+      required: [revision, version]
+      properties:
+        revision: { type: integer }
+        version: { $ref: '#/components/schemas/VersionSummary' }
+
+    # ---- canonical content (mirrors src/domain/document/schema.js, schemaVersion 0.1)
+    CanonicalDocument:
+      type: object
+      required: [schemaVersion, id, file, selectedPages, pages]
+      properties:
+        schemaVersion: { type: string, enum: ['0.1'] }
+        id: { type: string }
+        file:
+          type: object
+          required: [name, totalPages]
+          properties:
+            name: { type: string }
+            size: { type: integer }
+            mimeType: { type: string }
+            totalPages: { type: integer, minimum: 1 }
+            lastModified: { type: integer }
+        selectedPages:
+          type: array
+          items: { type: integer, minimum: 1 }
+        pages:
+          type: array
+          description: One entry per SELECTED page, in original order. Pages are isolated from each other.
+          items: { $ref: '#/components/schemas/Page' }
+    Page:
+      type: object
+      required: [id, pageNumber, processing, review, elements]
+      properties:
+        id: { type: string }
+        pageNumber: { type: integer, minimum: 1, description: The ORIGINAL page number (kept in exports as sourcePage). }
+        processing:
+          type: object
+          required: [status]
+          properties:
+            status: { type: string, enum: [notProcessed, processing, succeeded, failed] }
+            errorCode: { type: string, nullable: true }
+        review:
+          type: object
+          required: [status]
+          properties:
+            status: { type: string, enum: [notReviewed, reviewed, invalidated] }
+            confirmedAt: { type: string, format: date-time, nullable: true }
+        elements:
+          type: array
+          description: The corrected working content.
+          items: { $ref: '#/components/schemas/Element' }
+        originalExtraction:
+          nullable: true
+          description: 'The preserved ORIGINAL extraction of the page (decision 49: the corrected and the extracted results are kept apart). null when none exists.'
+          type: object
+          properties:
+            elements:
+              type: array
+              items: { $ref: '#/components/schemas/Element' }
+    Element:
+      type: object
+      required: [id, type, order, content, source]
+      properties:
+        id: { type: string, description: 'Unique inside the document, including table row and cell ids. The AI adapter must supply unique ids or the backend assigns them.' }
+        type: { type: string, enum: [heading, paragraph, table, field, unclassified] }
+        order: { type: integer, minimum: 0, description: Position in the reading order; equals the array index. }
+        content:
+          type: object
+          additionalProperties: true
+          description: >-
+            heading {text, level 1-6}; paragraph {text}; table {rows:[{id, cells:[{id, text}]}]}; field {key, value};
+            unclassified {text, raw}.
+        source:
+          type: object
+          required: [kind]
+          description: Tracked internally, never shown to the reviewer and never exported (decision 49).
+          properties:
+            kind: { type: string, enum: [ai, manual] }
+            details: { type: object, additionalProperties: true }
+        location:
+          nullable: true
+          description: >-
+            OPTIONAL normalised coordinates (decision 50): relative (0..1) to the UNROTATED page. The review works without them.
+          allOf: [{ $ref: '#/components/schemas/Location' }]
+        metadata: { type: object, additionalProperties: true }
+    Location:
+      type: object
+      required: [x, y, width, height]
+      properties:
+        x: { type: number, minimum: 0, maximum: 1 }
+        y: { type: number, minimum: 0, maximum: 1 }
+        width: { type: number, minimum: 0, maximum: 1 }
+        height: { type: number, minimum: 0, maximum: 1 }
+    SavePagesRequest:
+      type: object
+      required: [baseRevision, pages]
+      properties:
+        baseRevision: { type: integer, minimum: 0, description: The revision the client last saw. A different current revision gives 409 revisionConflict. }
+        pages:
+          type: array
+          minItems: 1
+          description: Only the pages that changed, each with its id; every one must already exist in the document (otherwise nothing is written).
+          items: { $ref: '#/components/schemas/Page' }
+    RevisionResponse:
+      type: object
+      required: [revision]
+      properties:
+        revision: { type: integer, minimum: 0 }
+        updatedAt: { type: string, format: date-time }
+    PageRevisionResponse:
+      type: object
+      required: [revision, page]
+      properties:
+        revision: { type: integer }
+        page: { $ref: '#/components/schemas/Page' }
+
+    # ---- queue and locks
+    UploadAvailability:
+      type: object
+      required: [available]
+      properties:
+        available: { type: boolean }
+        reason: { type: string, enum: [storageFull, insufficientStorage], nullable: true }
+    QueueJob:
+      type: object
+      required: [id, kind, documentId, state]
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [document, page] }
+        documentId: { type: string }
+        pageNumber: { type: integer, nullable: true }
+        attempt: { type: integer, nullable: true }
+        state: { type: string, enum: [queued, running] }
+        position: { type: integer, nullable: true, description: FIFO place among the waiting jobs (decision 23). }
+    QueueState:
+      type: object
+      required: [blocked, jobs]
+      properties:
+        blocked: { type: string, enum: [storageFull], nullable: true }
+        jobs:
+          type: array
+          items: { $ref: '#/components/schemas/QueueJob' }
+    Lock:
+      type: object
+      required: [holderId, holderName, acquiredAt, expiresAt]
+      properties:
+        holderId: { type: string }
+        holderName: { type: string }
+        acquiredAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time, description: The lease is decided by the server; the frontend renews before it. }
+    LockOutcome:
+      type: object
+      required: [granted, lock]
+      properties:
+        granted: { type: boolean }
+        lock: { $ref: '#/components/schemas/Lock' }

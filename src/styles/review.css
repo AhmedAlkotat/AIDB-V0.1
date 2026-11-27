@@ -165,6 +165,15 @@
   color: var(--color-danger);
 }
 
+.save-status__confirmed {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-teal-800);
+}
+
 .save-status--saved {
   border-color: var(--color-teal);
   background: var(--color-teal-50);

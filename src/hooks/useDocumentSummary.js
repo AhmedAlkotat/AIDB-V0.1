@@ -1,24 +1,26 @@
-import { useEffect, useState } from 'react'
-import { DEMO_REVIEW_IDS, seedDemoReviewDocuments } from '../data/mock/reviewDemo.mock.js'
-import { documentStore } from '../services/documentStore.js'
+import { documentService } from '../services/documentService.js'
+import { useLiveResource } from './useLiveResource.js'
 
-// The store summary of ONE document (its derived state, owner, counts), kept up to date while the
-// screen is shown; null when the document does not exist or is in the recycle bin.
-export function useDocumentSummary(documentId, store = documentStore) {
-  const find = () => {
-    // The demonstration documents are mock data: development builds only.
-    if (import.meta.env?.DEV && Object.values(DEMO_REVIEW_IDS).includes(documentId)) seedDemoReviewDocuments(store)
-    return store.list().find((item) => item.id === documentId) ?? null
-  }
-  const [summary, setSummary] = useState(find)
-  // The screen that uses this is keyed by the document, so only the store's changes need following.
-  useEffect(() => store.subscribe(() => setSummary(find())), [documentId, store]) // eslint-disable-line react-hooks/exhaustive-deps
-  return summary
+// The summary of ONE document (its derived state, owner, counts), kept up to date while the screen is shown:
+//   { status: 'loading' | 'ready' | 'error', summary, error, reload }
+// `summary` is null when the document does not exist, is in the recycle bin, or the caller may not see it.
+// Render the screen that uses this with key={documentId}. `service` can be replaced (tests).
+export function useDocumentSummary(documentId, { service = documentService } = {}) {
+  const resource = useLiveResource({
+    load: (signal) => service.getSummary(documentId, { signal }),
+    peek: () => service.peekSummary?.(documentId),
+    subscribe: (listener) => service.subscribe(listener),
+  })
+  return { status: resource.status, summary: resource.data ?? null, error: resource.error, reload: resource.reload }
 }
 
-// The document's bookkeeping without its content (attempts, version summaries, recognised template).
-export function useDocumentMeta(documentId, store = documentStore) {
-  const [meta, setMeta] = useState(() => store.getMeta(documentId))
-  useEffect(() => store.subscribe(() => setMeta(store.getMeta(documentId))), [documentId, store])
-  return meta
+// The document's bookkeeping without its content (attempts, version summaries, recognised template): the data, or null
+// until it is known. Render the screen that uses this with key={documentId}.
+export function useDocumentMeta(documentId, { service = documentService } = {}) {
+  const resource = useLiveResource({
+    load: (signal) => service.getMeta(documentId, { signal }),
+    peek: () => service.peekMeta?.(documentId),
+    subscribe: (listener) => service.subscribe(listener),
+  })
+  return resource.data ?? null
 }

@@ -140,6 +140,9 @@ export async function launchBrowser({ headless = true } = {}) {
         await send('Page.navigate', { url })
         await Promise.race([loaded, sleep(15000)])
         await sleep(300)
+        // Since Batch E the application is loaded as a second chunk after the build configuration was checked
+        // (src/main.jsx), so wait until something was rendered into #root.
+        await api.waitFor(`Boolean(document.querySelector('#root')) && document.querySelector('#root').children.length > 0`, { timeout: 30000 }).catch(() => {})
         // The app first checks for an existing session ("loading" screen).
         await api.waitFor(`!document.querySelector('.auth-loading')`).catch(() => {})
       },

@@ -19,6 +19,7 @@
 // the bundler removes from production builds.
 
 import { createMockAuthService } from '../dev/mockAuthService.js'
+import { getServiceMode, SERVICE_MODE } from './serviceMode.js'
 import { AUTH_ERROR, AuthError } from './authErrors.js'
 
 export { AUTH_ERROR, AuthError }
@@ -36,6 +37,6 @@ export const httpAuthService = Object.freeze({
 
 // The service used by the app: the mock in development, the real one otherwise.
 export function createAuthService() {
-  if (import.meta.env?.DEV) return createMockAuthService()
+  if (getServiceMode() === SERVICE_MODE.mock && import.meta.env?.DEV) return createMockAuthService()
   return httpAuthService
 }

@@ -13,6 +13,7 @@
 // Development builds list a few illustrative entries (src/dev/mockTemplateService.js) behind `import.meta.env.DEV`.
 
 import { createMockTemplateService } from '../dev/mockTemplateService.js'
+import { getServiceMode, SERVICE_MODE } from './serviceMode.js'
 import { createNotConnectedService, SYSTEM_ERROR, SystemError } from './systemErrors.js'
 
 export { SYSTEM_ERROR, SystemError }
@@ -20,7 +21,7 @@ export { SYSTEM_ERROR, SystemError }
 export const NOT_CONNECTED_TEMPLATES = createNotConnectedService(['list'])
 
 export function createTemplateService() {
-  if (import.meta.env?.DEV) return createMockTemplateService()
+  if (getServiceMode() === SERVICE_MODE.mock && import.meta.env?.DEV) return createMockTemplateService()
   return NOT_CONNECTED_TEMPLATES
 }
 

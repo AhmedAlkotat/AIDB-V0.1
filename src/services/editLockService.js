@@ -19,6 +19,7 @@
 // builds use a simulation (src/dev/mockEditLockService.js) reachable only through the `import.meta.env.DEV` branch.
 
 import { createMockEditLockService } from '../dev/mockEditLockService.js'
+import { getServiceMode, SERVICE_MODE } from './serviceMode.js'
 import { createNotConnectedService, SYSTEM_ERROR, SystemError } from './systemErrors.js'
 
 export { SYSTEM_ERROR, SystemError }
@@ -29,7 +30,7 @@ export const NOT_CONNECTED_EDIT_LOCK = Object.freeze({
 })
 
 export function createEditLockService() {
-  if (import.meta.env?.DEV) return createMockEditLockService()
+  if (getServiceMode() === SERVICE_MODE.mock && import.meta.env?.DEV) return createMockEditLockService()
   return NOT_CONNECTED_EDIT_LOCK
 }
 

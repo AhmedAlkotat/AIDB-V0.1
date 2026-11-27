@@ -10,6 +10,7 @@
 // shape the interface; the backend must enforce every permission.
 
 import { createMockAuditService } from '../dev/mockAuditService.js'
+import { getServiceMode, SERVICE_MODE } from './serviceMode.js'
 import { createNotConnectedService, SYSTEM_ERROR, SystemError } from './systemErrors.js'
 
 export { SYSTEM_ERROR, SystemError }
@@ -17,7 +18,7 @@ export { SYSTEM_ERROR, SystemError }
 export const NOT_CONNECTED_AUDIT = createNotConnectedService(['listEntries'])
 
 export function createAuditLogService() {
-  if (import.meta.env?.DEV) return createMockAuditService()
+  if (getServiceMode() === SERVICE_MODE.mock && import.meta.env?.DEV) return createMockAuditService()
   return NOT_CONNECTED_AUDIT
 }
 

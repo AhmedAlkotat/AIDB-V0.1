@@ -8,6 +8,7 @@ export const SYSTEM_ERROR = Object.freeze({
   invalidInput: 'invalidInput', // `fields` names what is wrong
   blocked: 'blocked', // refused because of the system state (e.g. a restore is running)
   notConnected: 'notConnected',
+  unauthenticated: 'unauthenticated', // the session is over (HTTP 401)
   network: 'network',
   unknown: 'unknown',
 })

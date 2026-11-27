@@ -15,6 +15,8 @@ export const WORKFLOW_ERROR = Object.freeze({
   lockHeld: 'lockHeld', // decision 47: someone else is editing
   lockLost: 'lockLost', // the caller's own lock expired or was taken over
   noSuchVersion: 'noSuchVersion',
+  revisionConflict: 'revisionConflict', // the document changed since it was loaded (lost-update / stale-approval protection)
+  unsupportedFileType: 'unsupportedFileType', // only PDF, JPG, JPEG and PNG are accepted
   forbidden: SYSTEM_ERROR.forbidden,
   notFound: SYSTEM_ERROR.notFound,
   notConnected: SYSTEM_ERROR.notConnected,

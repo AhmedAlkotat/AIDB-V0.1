@@ -106,6 +106,7 @@ function summarize(record) {
     selectedCount: pages.length,
     reviewedCount,
     lastVisitedPage: record.lastVisitedPage,
+    firstSelectedPage: record.snapshot.selectedPages[0] ?? null,
   }
 }
 
@@ -323,4 +324,5 @@ export function createMemoryDocumentStore({ now = () => new Date().toISOString()
 }
 
 // The application's single temporary store.
-export const documentStore = createMemoryDocumentStore()
+// Marked pure: only the development simulation uses it, so a production bundle drops it.
+export const documentStore = /* @__PURE__ */ createMemoryDocumentStore()

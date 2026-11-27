@@ -10,6 +10,7 @@
 // shape the interface; the backend must enforce every permission.
 
 import { createMockStorageService } from '../dev/mockStorageService.js'
+import { getServiceMode, SERVICE_MODE } from './serviceMode.js'
 import { createNotConnectedService, SYSTEM_ERROR, SystemError } from './systemErrors.js'
 
 export { SYSTEM_ERROR, SystemError }
@@ -17,7 +18,7 @@ export { SYSTEM_ERROR, SystemError }
 export const NOT_CONNECTED_STORAGE = createNotConnectedService(['getStatus'])
 
 export function createStorageService() {
-  if (import.meta.env?.DEV) return createMockStorageService()
+  if (getServiceMode() === SERVICE_MODE.mock && import.meta.env?.DEV) return createMockStorageService()
   return NOT_CONNECTED_STORAGE
 }
 

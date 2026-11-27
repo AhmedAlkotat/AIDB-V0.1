@@ -78,6 +78,11 @@ await runChecks('Document management (Batch D)', async ({ browser, check }) => {
   await page.goto(`${BASE_URL}/upload`)
   await setLanguage(page, 'ar')
   await page.waitFor(`document.querySelector('.upload-layout')`)
+  // O-3: the application has a favicon, so the browser gets no 404 for it.
+  const icons = await page.eval(`[...document.querySelectorAll('link[rel~=icon]')].map((l) => l.getAttribute('href'))`)
+  check('O-3: the page links its icon', icons.includes('/favicon.svg') && icons.includes('/favicon.ico'), JSON.stringify(icons))
+  const iconAnswers = await page.eval(`Promise.all(['/favicon.svg', '/favicon.ico'].map((u) => fetch(u).then(async (r) => ({ u, ok: r.ok, type: r.headers.get('content-type'), size: (await r.arrayBuffer()).byteLength }))))`)
+  check('O-3: /favicon.svg and /favicon.ico are both served (no 404) as images', iconAnswers.every((a) => a.ok && /image\//.test(a.type ?? '') && a.size > 100), JSON.stringify(iconAnswers))
 
   // ---------------------------------------------------------------- upload: limits come from the settings
   await sleep(600)
@@ -214,10 +219,36 @@ await runChecks('Document management (Batch D)', async ({ browser, check }) => {
   await waitSaved(page)
   check('the Save draft button saves and the status says all saved with the time of the last save', (await text(page, '.save-status')).includes('آخر حفظ'))
   check('saving a draft does NOT approve the document', !(await exists(page, '.review-header__badges .badge--success')))
+  // O-1: the click confirms itself. (Autosave may already have stored everything, so the status alone says nothing.)
+  await page.waitFor(`document.querySelector('[data-save-confirmation=draft]')`, { timeout: 3000 }).catch(() => {})
+  check('O-1: clicking Save draft shows "تم حفظ المسودة" next to the saved status', (await exists(page, '[data-save-confirmation=draft]')) && (await text(page, '[data-save-confirmation=draft]')).includes('تم حفظ المسودة'))
   await typeInto(page, '.element-card--heading input, .element-card--heading textarea', 'عنوان آخر')
+  await sleep(100)
+  check('O-1: typing again hides the confirmation at once (it would no longer be true)', !(await exists(page, '[data-save-confirmation=draft]')))
   await waitSaved(page, 8000)
   check('automatic saving still works without pressing anything', await exists(page, '.save-status--saved'))
+  check('O-1: autosave never shows the "Save draft" confirmation', !(await exists(page, '[data-save-confirmation=draft]')))
   check('the save status is a live region', (await page.eval(`document.querySelector('.save-status').getAttribute('aria-live')`)) === 'polite')
+  // The O-1 scenario itself: everything is saved already, then the user clicks Save draft.
+  await page.click('.save-status__draft')
+  await page.waitFor(`document.querySelector('[data-save-confirmation=draft]')`, { timeout: 3000 }).catch(() => {})
+  check('O-1: with nothing left to save the click still confirms (and the status stays "saved")', (await exists(page, '[data-save-confirmation=draft]')) && (await saveState(page)) === 'saved')
+  await page.waitFor(`!document.querySelector('[data-save-confirmation=draft]')`, { timeout: 7000 }).catch(() => {})
+  check('O-1: the confirmation goes away by itself', !(await exists(page, '[data-save-confirmation=draft]')))
+  // No false success: when the storage refuses the save there is NO confirmation and the failure stays visible.
+  await page.eval(`document.querySelector('.mock-tools summary').click()`)
+  await page.eval(`document.querySelector('.mock-tools__toggle input[type=checkbox]').click()`) // "simulate a failing save"
+  await typeInto(page, '.element-card--heading input, .element-card--heading textarea', 'عنوان لن يُحفظ')
+  await page.waitFor(`document.querySelector('.save-status--failed')`, { timeout: 8000 }).catch(() => {})
+  await page.click('.save-status__draft')
+  await sleep(700)
+  check('O-1: a refused save shows NO confirmation, the status says it failed, and the edit stays on screen', !(await exists(page, '[data-save-confirmation=draft]')) && (await saveState(page)) === 'failed' && (await page.eval(`document.querySelector('.element-card--heading input, .element-card--heading textarea').value`)) === 'عنوان لن يُحفظ')
+  await page.eval(`document.querySelector('.mock-tools__toggle input[type=checkbox]').click()`) // the storage works again
+  await page.click('.save-status__draft')
+  await waitSaved(page, 8000)
+  await page.waitFor(`document.querySelector('[data-save-confirmation=draft]')`, { timeout: 3000 }).catch(() => {})
+  check('O-1: once the storage works again the same click saves and confirms', (await exists(page, '[data-save-confirmation=draft]')) && (await saveState(page)) === 'saved')
+  await page.eval(`document.querySelector('.mock-tools summary').click()`) // leave the tools closed as they were
 
   // ---------------------------------------------------------------- reprocessing one page (decision 38) and attempts (40)
   const reprocessButton = `.processing .button--secondary`
