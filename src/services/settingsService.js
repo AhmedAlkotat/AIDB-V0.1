@@ -13,6 +13,7 @@
 // shape the interface; the backend must enforce every permission.
 
 import { createMockSettingsService } from '../dev/mockSettingsService.js'
+import { getServiceMode, SERVICE_MODE } from './serviceMode.js'
 import { createNotConnectedService, SYSTEM_ERROR, SystemError } from './systemErrors.js'
 
 export { SYSTEM_ERROR, SystemError }
@@ -20,7 +21,7 @@ export { SYSTEM_ERROR, SystemError }
 export const NOT_CONNECTED_SETTINGS = createNotConnectedService(['getSettings', 'getLimits', 'previewImpact', 'updateSection'])
 
 export function createSettingsService() {
-  if (import.meta.env?.DEV) return createMockSettingsService()
+  if (getServiceMode() === SERVICE_MODE.mock && import.meta.env?.DEV) return createMockSettingsService()
   return NOT_CONNECTED_SETTINGS
 }
 

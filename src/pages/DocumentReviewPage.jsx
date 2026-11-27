@@ -29,10 +29,11 @@ import { isNewVersionDraft } from '../domain/document/versions.js'
 import { useCurrentUser } from '../hooks/useCurrentUser.js'
 import { useDocumentMeta, useDocumentSummary } from '../hooks/useDocumentSummary.js'
 import { useNavigationGuard } from '../hooks/useNavigationGuard.js'
+import { useOriginalFile } from '../hooks/useOriginalFile.js'
 import { useReviewSession, useSessionView } from '../hooks/useReviewSession.js'
 import { useTranslation } from '../hooks/useTranslation.js'
 import { backFromReviewPath, ROUTES } from '../routes/paths.js'
-import { documentStore } from '../services/documentStore.js'
+import { documentService } from '../services/documentService.js'
 import { documentWorkflowService } from '../services/documentWorkflowService.js'
 import { ACTION } from '../state/documentSession/documentReducer.js'
 import { selectRedoDepth, selectUndoDepth } from '../state/documentSession/documentSelectors.js'
@@ -46,6 +47,7 @@ function ReviewWorkspace({ session, record, summary }) {
   const user = useCurrentUser()
   const view = useSessionView(session)
   const meta = useDocumentMeta(record.id)
+  const original = useOriginalFile(record.id, record.file)
   const guard = useNavigationGuard(session)
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState('texts')
@@ -136,7 +138,24 @@ function ReviewWorkspace({ session, record, summary }) {
       <PageNavigator pages={document.pages} selectedPages={document.selectedPages} currentPage={currentPage} onGoTo={goTo} />
 
       <SplitPane
-        start={<OriginalViewer file={record.file} pageNumber={currentPage} highlight={shownHighlight} />}
+        start={
+          original.file ? (
+            <OriginalViewer file={original.file} pageNumber={currentPage} highlight={shownHighlight} />
+          ) : (
+            <section className="card review-message" aria-live="polite">
+              {original.status === 'error' ? (
+                <Alert tone="error" title={t('review.loadError.title')}>
+                  {t('review.original.failed')}
+                </Alert>
+              ) : (
+                <p className="auth-loading" role="status">
+                  <span className="spinner" aria-hidden="true" />
+                  {t('review.original.loading')}
+                </p>
+              )}
+            </section>
+          )
+        }
         end={
           <section className="card editor-panel" aria-labelledby="editor-title">
             <h3 id="editor-title">{t('review.editor.title')}</h3>
@@ -180,7 +199,7 @@ function ReviewWorkspace({ session, record, summary }) {
       />
 
       {meta && (
-        <VersionHistoryPanel versions={meta.versions} isDraft={isNewVersion} getVersion={(number) => documentStore.getVersion(record.id, number)} />
+        <VersionHistoryPanel versions={meta.versions} isDraft={isNewVersion} getVersion={(number) => documentService.getVersion(record.id, number)} />
       )}
       {meta && <AttemptHistoryPanel attempts={meta.attempts} acceptedResultCounts={meta.acceptedResultCounts} />}
 
@@ -220,6 +239,18 @@ function ReviewLoader({ documentId, summary }) {
   if (result.status === 'ready') {
     return <ReviewWorkspace session={result.session} record={result.record} summary={summary} />
   }
+  if (result.status === 'loading') {
+    return (
+      <div className="page review-page">
+        <section className="card review-message" aria-live="polite">
+          <p className="auth-loading" role="status">
+            <span className="spinner" aria-hidden="true" />
+            {t('common.loading')}
+          </p>
+        </section>
+      </div>
+    )
+  }
 
   return (
     <div className="page review-page">
@@ -237,6 +268,12 @@ function ReviewLoader({ documentId, summary }) {
         {result.status === 'error' && (
           <Alert tone="error" title={t('review.loadError.title')}>
             {t('review.loadError.text')}
+            <p>
+              <button type="button" className="button button--secondary button--sm" onClick={result.retry}>
+                <Icon name="refresh" size={16} />
+                {t('common.retry')}
+              </button>
+            </p>
           </Alert>
         )}
         <BackToQueue />
@@ -267,12 +304,42 @@ export default function DocumentReviewPage() {
 function LoadedReview({ documentId }) {
   const { t } = useTranslation()
   const user = useCurrentUser()
-  const summary = useDocumentSummary(documentId)
+  const { status, summary, reload } = useDocumentSummary(documentId)
   const [mode, setMode] = useState(() => (summary && isBeingProcessed(summary.state) ? 'status' : 'review'))
 
   // A retry started from the review hands the document back to the queue: show the status from then on.
   if (summary && mode === 'review' && isBeingProcessed(summary.state)) setMode('status')
 
+  if (status === 'loading') {
+    return (
+      <div className="page review-page">
+        <section className="card review-message" aria-live="polite">
+          <p className="auth-loading" role="status">
+            <span className="spinner" aria-hidden="true" />
+            {t('common.loading')}
+          </p>
+        </section>
+      </div>
+    )
+  }
+  if (status === 'error') {
+    return (
+      <div className="page review-page">
+        <section className="card review-message" aria-live="polite">
+          <Alert tone="error" title={t('review.loadError.title')}>
+            {t('review.loadError.text')}
+            <p>
+              <button type="button" className="button button--secondary button--sm" onClick={() => reload()}>
+                <Icon name="refresh" size={16} />
+                {t('common.retry')}
+              </button>
+            </p>
+          </Alert>
+          <BackToQueue />
+        </section>
+      </div>
+    )
+  }
   if (!summary) {
     return (
       <div className="page review-page">
@@ -298,10 +365,13 @@ function LoadedReview({ documentId }) {
     )
   }
 
-  if (mode === 'status') {
-    const record = documentStore.get(documentId)
-    return <ProcessingStatusView summary={summary} file={record?.file ?? null} firstPage={record?.snapshot.selectedPages[0] ?? 1} onOpenReview={() => setMode('review')} />
-  }
+  if (mode === 'status') return <ProcessingStatus summary={summary} onOpenReview={() => setMode('review')} />
   return <ReviewLoader documentId={documentId} summary={summary} />
 }
 
+// The status view of a Pending / Processing document: the original beside the processing status.
+function ProcessingStatus({ summary, onOpenReview }) {
+  const [knownFile] = useState(() => documentService.peekDocument?.(summary.id)?.file ?? null)
+  const original = useOriginalFile(summary.id, knownFile)
+  return <ProcessingStatusView summary={summary} file={original.file} firstPage={summary.firstSelectedPage ?? 1} onOpenReview={onOpenReview} />
+}

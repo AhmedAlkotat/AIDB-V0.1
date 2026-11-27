@@ -12,6 +12,7 @@
 // library) but it does NOT fabricate Word, Excel or PDF files; those need the server (Batch E).
 
 import { createMockExportService } from '../dev/mockExportService.js'
+import { getServiceMode, SERVICE_MODE } from './serviceMode.js'
 import { createNotConnectedService, SYSTEM_ERROR, SystemError } from './systemErrors.js'
 
 export { SYSTEM_ERROR, SystemError }
@@ -19,7 +20,7 @@ export { SYSTEM_ERROR, SystemError }
 export const NOT_CONNECTED_EXPORT = createNotConnectedService(['exportDocument', 'getOriginal'])
 
 export function createExportService() {
-  if (import.meta.env?.DEV) return createMockExportService()
+  if (getServiceMode() === SERVICE_MODE.mock && import.meta.env?.DEV) return createMockExportService()
   return NOT_CONNECTED_EXPORT
 }
 

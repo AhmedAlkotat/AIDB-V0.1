@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect } from 'react'
+import { useManualSaveConfirmation } from '../../hooks/useManualSaveConfirmation.js'
 import { useTranslation } from '../../hooks/useTranslation.js'
 import { SAVE_STATUS } from '../../domain/document/saveStatus.js'
 import { Icon } from '../common/Icon.jsx'
@@ -15,15 +16,19 @@ const ICONS = {
 // navigation). It shows what the configured storage ACKNOWLEDGED, and says plainly when that storage is only
 // this browser tab's memory. SAVING IS NOT APPROVAL: the button never approves anything. After a failure the
 // status offers "try again" (the draft button retries too).
+//
+// "Save draft" confirms itself (observation O-1): when autosave has already stored everything the click would change
+// nothing on screen, so a short "Draft saved" appears. It appears ONLY when that save really ended "saved" (never after a
+// failure, never for autosave) and it goes away when the status leaves "saved" (see components/review/manualSave.js).
 export function SaveStatusIndicator({ status, isTemporary, lastSavedAt, canSave = true, onRetry, onSaveDraft }) {
   const { t, formatDateTime } = useTranslation()
-  const [isBusy, setIsBusy] = useState(false)
+  const draft = useManualSaveConfirmation(() => onSaveDraft())
 
-  async function saveDraft() {
-    setIsBusy(true)
-    await onSaveDraft()
-    setIsBusy(false)
-  }
+  // A change after the confirmation (typing, a failed save) makes it untrue: hide it at once.
+  const { dismiss } = draft
+  useEffect(() => {
+    if (status !== SAVE_STATUS.saved) dismiss()
+  }, [status, dismiss])
 
   return (
     <div className={`save-status save-status--${status}`} role="status" aria-live="polite">
@@ -34,8 +39,14 @@ export function SaveStatusIndicator({ status, isTemporary, lastSavedAt, canSave 
       {lastSavedAt && status === SAVE_STATUS.saved && <span className="save-status__note">{t('review.save.lastSaved', { time: formatDateTime(lastSavedAt) })}</span>}
       {status === SAVE_STATUS.unsaved && <span className="save-status__note">{t('review.save.unsavedWarning')}</span>}
       {isTemporary && <span className="save-status__note">{t('review.save.temporaryShort')}</span>}
+      {draft.isConfirmed && status === SAVE_STATUS.saved && (
+        <span className="save-status__confirmed" data-save-confirmation="draft">
+          <Icon name="checkCircle" size={16} />
+          {t('review.save.draftSaved')}
+        </span>
+      )}
       {onSaveDraft && (
-        <button type="button" className="button button--secondary button--sm save-status__draft" disabled={!canSave || isBusy || status === SAVE_STATUS.saving} onClick={saveDraft}>
+        <button type="button" className="button button--secondary button--sm save-status__draft" disabled={!canSave || draft.isSaving || status === SAVE_STATUS.saving} onClick={draft.run}>
           <Icon name="save" size={16} />
           {t('review.save.draft')}
         </button>

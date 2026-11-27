@@ -164,6 +164,22 @@ Tests: `npm test` runs the Node test runner over `tests/` (domain, session,
 autosave and the UI render tests, which load the real `.jsx` components through
 Vite's SSR loader; no extra dependency).
 
+## Backend integration foundation (Batch E, Wave 1)
+
+* **Service mode** (`src/services/serviceMode.js`, `.env.example`): `VITE_API_MODE=mock|http`. `npm run dev` defaults to `mock` (the
+  in-browser simulations in `src/dev/`), a production build defaults to `http` and **refuses** `mock`; an unknown value stops the
+  application with a message (`src/main.jsx`). `http` never falls back to a simulation: a service without an HTTP adapter yet reports
+  "not connected". `VITE_API_BASE_URL` sets the API address (default `/api/v1`).
+* **Asynchronous document service** (`src/services/documentService.js`): the one way screens, hooks and review sessions read and write
+  documents. Adapters: the development simulation (`src/dev/mockDocumentService.js`) and the HTTP adapter
+  (`src/services/httpDocumentService.js`, revision-based write protection, polling change feed ready for SSE).
+* **API client** (`src/services/apiClient.js`): bearer token held **in memory only**, per-request timeouts, FormData and binary
+  responses, one silent refresh then one session-end hook; errors are mapped to the domain errors in `src/services/apiErrors.js`.
+  A 401 never discards unsaved review work (`src/state/auth/unsavedWork.js`, `SessionExpiredBanner`).
+* **Contract draft** (`docs/api/`): `openapi.draft.yaml` (53 operations, PROPOSED, not agreed), `error-codes.md`, `questions.md`.
+  The development-only **contract server** (`npm run contract-server`, `scripts/contract-server/`) implements it with fixtures. It is not
+  the backend. Details: `docs/batch-e-wave-1.md`.
+
 ## Structure
 
 ```text

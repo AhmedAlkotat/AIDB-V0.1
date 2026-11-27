@@ -23,6 +23,7 @@
 // the frontend cannot provide it.
 
 import { createMockEmployeeService } from '../dev/mockEmployeeService.js'
+import { getServiceMode, SERVICE_MODE } from './serviceMode.js'
 import { EMPLOYEE_ERROR, EmployeeError } from './employeeErrors.js'
 
 export { EMPLOYEE_ERROR, EmployeeError }
@@ -43,7 +44,7 @@ export const httpEmployeeService = Object.freeze({
 
 // The service used by the app: the mock in development, the real one otherwise.
 export function createEmployeeService() {
-  if (import.meta.env?.DEV) return createMockEmployeeService()
+  if (getServiceMode() === SERVICE_MODE.mock && import.meta.env?.DEV) return createMockEmployeeService()
   return httpEmployeeService
 }
 

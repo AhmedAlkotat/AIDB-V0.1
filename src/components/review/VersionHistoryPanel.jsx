@@ -56,10 +56,27 @@ function VersionViewer({ version, onClose }) {
 // The approved versions of a document with their dates (decision 14): who approved, when, and how many pages.
 // The previous versions stay for good (the audit log's retention period never deletes them, decision 33); an
 // authorised user (whoever may see the document) can open any of them read-only. `isDraft` says a new version
-// is in progress and not yet approved. `getVersion(number)` returns the stored version with its content.
+// is in progress and not yet approved. `getVersion(number)` returns the stored version with its content (a promise or a
+// value: the version is read from the document service, which is asynchronous).
 export function VersionHistoryPanel({ versions, isDraft, getVersion }) {
   const { t, formatNumber, formatDateTime } = useTranslation()
   const [viewing, setViewing] = useState(null)
+  const [loadingNumber, setLoadingNumber] = useState(null)
+  const [failed, setFailed] = useState(false)
+
+  async function openVersion(number) {
+    setFailed(false)
+    setLoadingNumber(number)
+    try {
+      const version = await getVersion(number)
+      if (version) setViewing(version)
+      else setFailed(true)
+    } catch {
+      setFailed(true)
+    } finally {
+      setLoadingNumber(null)
+    }
+  }
 
   if (versions.length === 0) return null
 
@@ -82,12 +99,17 @@ export function VersionHistoryPanel({ versions, isDraft, getVersion }) {
               {' · '}
               {t('review.versions.pages', { count: formatNumber(version.pageCount) })}
             </span>
-            <button type="button" className="button button--secondary button--sm" onClick={() => setViewing(getVersion(version.number))}>
+            <button type="button" className="button button--secondary button--sm" disabled={loadingNumber !== null} onClick={() => openVersion(version.number)}>
               {t('review.versions.view')}
             </button>
           </li>
         ))}
       </ol>
+      {failed && (
+        <p className="badge badge--danger" role="alert">
+          {t('review.versions.loadFailed')}
+        </p>
+      )}
       {viewing && <VersionViewer version={viewing} onClose={() => setViewing(null)} />}
     </section>
   )

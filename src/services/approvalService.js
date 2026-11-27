@@ -15,6 +15,7 @@
 // branch below. Callers never report success unless the service acknowledged it.
 
 import { createMockApprovalService } from '../dev/mockApprovalService.js'
+import { getServiceMode, SERVICE_MODE } from './serviceMode.js'
 
 export const APPROVAL_NOT_CONNECTED = 'APPROVAL_NOT_CONNECTED'
 
@@ -31,7 +32,7 @@ const refuse = () => Promise.reject(new ApprovalNotConnectedError())
 export const NOT_CONNECTED_APPROVAL = Object.freeze({ isMock: false, requestDocumentApproval: refuse, requestNewEditableVersion: refuse })
 
 export function createApprovalService() {
-  if (import.meta.env?.DEV) return createMockApprovalService()
+  if (getServiceMode() === SERVICE_MODE.mock && import.meta.env?.DEV) return createMockApprovalService()
   return NOT_CONNECTED_APPROVAL
 }
 

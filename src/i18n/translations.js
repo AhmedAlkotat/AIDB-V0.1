@@ -75,6 +75,14 @@ export const translations = Object.freeze({
         network: 'تعذر الوصول إلى الخادم. تحقق من الاتصال وحاول مرة أخرى.',
         unknown: 'حدث خطأ غير متوقع. حاول مرة أخرى.',
         sessionExpired: 'انتهت جلستك. سجّل الدخول مرة أخرى.',
+        sessionUserMismatch: 'هذه ليست بيانات المستخدم الذي بدأ هذا العمل. سجّل الدخول بحسابك الأصلي أو اختر الخروج.',
+      },
+      reauth: {
+        title: 'انتهت جلستك، لكن عملك غير المحفوظ ما زال أمامك',
+        text: 'لم يُفقد أي تعديل. سجّل الدخول مرة أخرى بالحساب نفسه لمتابعة الحفظ، أو اخرج وسيُفقد غير المحفوظ.',
+        submit: 'تسجيل الدخول والمتابعة',
+        submitting: 'جارٍ التحقق…',
+        signOut: 'الخروج دون حفظ',
       },
       initFailed: {
         title: 'تعذر التحقق من الجلسة',
@@ -464,6 +472,7 @@ export const translations = Object.freeze({
         viewerTitle: 'الإصدار المعتمد {version}',
         page: 'الصفحة',
         readOnlyNote: 'هذا إصدار معتمد سابق، للعرض فقط.',
+        loadFailed: 'تعذر تحميل هذا الإصدار. حاول مرة أخرى.',
         draftInProgress: 'إصدار جديد ({version}) قيد التحرير وينتظر الاعتماد',
       },
       attempts: {
@@ -532,6 +541,10 @@ export const translations = Object.freeze({
         title: 'تعذر فتح المستند',
         text: 'بيانات المستند المحفوظة غير صالحة، ولم يتم إصلاحها تلقائيًا حتى لا تضيع أي معلومة.',
       },
+      original: {
+        loading: 'جارٍ تحميل المستند الأصلي…',
+        failed: 'تعذر تحميل المستند الأصلي. تحقق من الاتصال ثم أعد تحميل الصفحة.',
+      },
       header: {
         page: 'الصفحة {page} من الملف الأصلي',
         position: 'الصفحة المختارة {index} من {count}',
@@ -548,6 +561,7 @@ export const translations = Object.freeze({
         saving: 'جارٍ الحفظ',
         failed: 'فشل الحفظ',
         draft: 'حفظ المسودة',
+        draftSaved: 'تم حفظ المسودة.',
         lastSaved: 'آخر حفظ: {time}',
         unsavedWarning: 'لا تغادر قبل الحفظ؛ الحفظ لا يعني الاعتماد.',
         temporaryShort: 'حفظ مؤقت في ذاكرة المتصفح لهذه الجلسة فقط، ولا يُرسل إلى خادم',
@@ -934,6 +948,8 @@ export const translations = Object.freeze({
         lockHeld: 'مستخدم آخر يحرر هذا المستند الآن.',
         lockLost: 'انتهى قفل التحرير الخاص بك.',
         noSuchVersion: 'هذا الإصدار غير موجود.',
+        revisionConflict: 'تغيّر هذا المستند على الخادم منذ تحميله، لذلك لم يُنفَّذ الإجراء. تعديلاتك ما زالت معروضة؛ أعد تحميل المستند ثم أعد المحاولة.',
+        unsupportedFileType: 'نوع الملف غير مدعوم. الأنواع المقبولة: PDF وJPG وJPEG وPNG.',
         unknown: 'حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.',
       },
     },
@@ -986,6 +1002,7 @@ export const translations = Object.freeze({
       blocked: 'لا يمكن تنفيذ الإجراء الآن بسبب حالة النظام. حاول لاحقًا.',
       notConnected: 'هذه الخدمة غير متاحة بعد: الخادم غير متصل بالواجهة.',
       network: 'تعذر الوصول إلى الخادم. تحقق من الاتصال وحاول مرة أخرى.',
+      unauthenticated: 'انتهت جلستك. سجّل الدخول مرة أخرى.',
       unknown: 'حدث خطأ غير متوقع. حاول مرة أخرى.',
     },
     notifications: {
@@ -1574,6 +1591,14 @@ export const translations = Object.freeze({
         network: 'The server could not be reached. Check the connection and try again.',
         unknown: 'An unexpected error occurred. Please try again.',
         sessionExpired: 'Your session has ended. Please sign in again.',
+        sessionUserMismatch: 'These are not the credentials of the user who started this work. Sign in with your own account, or choose to sign out.',
+      },
+      reauth: {
+        title: 'Your session ended, but your unsaved work is still here',
+        text: 'No edit has been lost. Sign in again with the same account to carry on saving, or sign out and lose what is unsaved.',
+        submit: 'Sign in and continue',
+        submitting: 'Checking…',
+        signOut: 'Sign out without saving',
       },
       initFailed: {
         title: 'Could not check your session',
@@ -1956,6 +1981,7 @@ export const translations = Object.freeze({
         viewerTitle: 'Approved version {version}',
         page: 'Page',
         readOnlyNote: 'This is a previous approved version, view-only.',
+        loadFailed: 'This version could not be loaded. Try again.',
         draftInProgress: 'A new version ({version}) is being edited and waits for approval',
       },
       attempts: {
@@ -2024,6 +2050,10 @@ export const translations = Object.freeze({
         title: 'Could not open the document',
         text: 'The saved document data is invalid and was not repaired automatically, so that no information is lost.',
       },
+      original: {
+        loading: 'Loading the original document…',
+        failed: 'The original document could not be loaded. Check the connection and reload the page.',
+      },
       header: {
         page: 'Page {page} of the original file',
         position: 'Selected page {index} of {count}',
@@ -2040,6 +2070,7 @@ export const translations = Object.freeze({
         saving: 'Saving',
         failed: 'Saving failed',
         draft: 'Save draft',
+        draftSaved: 'Draft saved.',
         lastSaved: 'Last saved: {time}',
         unsavedWarning: 'Do not leave before it is saved; saving is not approval.',
         temporaryShort: 'Saved temporarily in this browser tab memory for this session only; nothing is sent to a server',
@@ -2426,6 +2457,8 @@ export const translations = Object.freeze({
         lockHeld: 'Another user is editing this document now.',
         lockLost: 'Your editing lock has ended.',
         noSuchVersion: 'This version does not exist.',
+        revisionConflict: 'This document changed on the server after it was loaded, so the action was not carried out. Your edits are still on screen; reload the document and try again.',
+        unsupportedFileType: 'This file type is not supported. Accepted types: PDF, JPG, JPEG and PNG.',
         unknown: 'An unexpected error occurred. Please try again.',
       },
     },
@@ -2478,6 +2511,7 @@ export const translations = Object.freeze({
       blocked: 'This cannot be done right now because of the system state. Try again later.',
       notConnected: 'This service is not available yet: the server is not connected to the interface.',
       network: 'The server could not be reached. Check the connection and try again.',
+      unauthenticated: 'Your session has ended. Sign in again.',
       unknown: 'An unexpected error occurred. Please try again.',
     },
     notifications: {

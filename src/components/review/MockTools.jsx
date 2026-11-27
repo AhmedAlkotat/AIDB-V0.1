@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from '../../hooks/useTranslation.js'
-import { documentStore } from '../../services/documentStore.js'
+import { documentService } from '../../services/documentService.js'
 import { editLockService } from '../../services/editLockService.js'
 import { mockProcessingService } from '../../services/mockProcessingService.js'
 
@@ -10,7 +10,9 @@ import { mockProcessingService } from '../../services/mockProcessingService.js'
 // pretend colleague, released, or expired.
 export function MockTools({ pageNumber, documentId }) {
   const { t, formatNumber } = useTranslation()
-  const [failSaves, setFailSaves] = useState(documentStore.isSimulatingFailure())
+  // The simulated server's store (only the development simulation has the failure switch).
+  const store = documentService.getSessionStore(documentId)
+  const [failSaves, setFailSaves] = useState(store.isSimulatingFailure?.() ?? false)
   const lockDev = editLockService.dev
 
   return (
@@ -24,7 +26,7 @@ export function MockTools({ pageNumber, documentId }) {
             checked={failSaves}
             onChange={(event) => {
               setFailSaves(event.target.checked)
-              documentStore.setSimulatedFailure(event.target.checked)
+              store.setSimulatedFailure?.(event.target.checked)
             }}
           />
           {t('review.mockTools.failSaves')}

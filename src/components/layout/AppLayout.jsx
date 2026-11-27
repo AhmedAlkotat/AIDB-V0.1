@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { matchPath, Outlet, useLocation } from 'react-router'
+import { SessionExpiredBanner } from '../auth/SessionExpiredBanner.jsx'
 import { NotificationsProvider } from '../../contexts/NotificationsProvider.jsx'
 import { useMediaQuery } from '../../hooks/useMediaQuery.js'
 import { useTranslation } from '../../hooks/useTranslation.js'
@@ -106,6 +107,7 @@ export function AppLayout() {
           headerRef={headerRef}
         />
         <main id="main-content" className={`app-content${isReviewPage ? ' app-content--wide' : ''}`} tabIndex={-1}>
+          <SessionExpiredBanner />
           <Outlet />
         </main>
       </div>

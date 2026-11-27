@@ -45,6 +45,7 @@ export function AuthProvider({ children, service, onSessionEnded }) {
       ...state,
       login: store.login,
       logout: store.logout,
+      reauthenticate: store.reauthenticate,
       clearError: store.clearError,
       retryInitialize: store.retryInitialize,
       devAccounts,

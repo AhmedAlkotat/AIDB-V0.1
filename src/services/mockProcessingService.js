@@ -103,4 +103,5 @@ export function createMockProcessingService({ delayMs = 700, shouldFail = defaul
   }
 }
 
-export const mockProcessingService = createMockProcessingService()
+// Marked pure so that a production bundle, which never uses it, can drop it (it is development-only).
+export const mockProcessingService = /* @__PURE__ */ createMockProcessingService()

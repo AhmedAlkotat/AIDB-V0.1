@@ -13,6 +13,7 @@
 // shape the interface; the backend must enforce every permission.
 
 import { createMockRecycleBinService } from '../dev/mockRecycleBinService.js'
+import { getServiceMode, SERVICE_MODE } from './serviceMode.js'
 import { createNotConnectedService, SYSTEM_ERROR, SystemError } from './systemErrors.js'
 
 export { SYSTEM_ERROR, SystemError }
@@ -20,7 +21,7 @@ export { SYSTEM_ERROR, SystemError }
 export const NOT_CONNECTED_RECYCLE_BIN = createNotConnectedService(['listDeleted', 'moveToBin', 'restore', 'deletePermanently'])
 
 export function createRecycleBinService() {
-  if (import.meta.env?.DEV) return createMockRecycleBinService()
+  if (getServiceMode() === SERVICE_MODE.mock && import.meta.env?.DEV) return createMockRecycleBinService()
   return NOT_CONNECTED_RECYCLE_BIN
 }
 

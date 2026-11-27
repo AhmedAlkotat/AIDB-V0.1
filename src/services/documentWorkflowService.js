@@ -30,6 +30,7 @@
 // permission and limit check belong to the backend (Batch E).
 
 import { createMockDocumentWorkflowService } from '../dev/mockDocumentWorkflowService.js'
+import { getServiceMode, SERVICE_MODE } from './serviceMode.js'
 import { createNotConnectedService, SYSTEM_ERROR, SystemError } from './systemErrors.js'
 
 export { SYSTEM_ERROR, SystemError }
@@ -55,7 +56,7 @@ export const NOT_CONNECTED_WORKFLOW = Object.freeze({
 
 export function createDocumentWorkflowService() {
   // The simulated queue holds a document in "Pending" for a moment after its turn, so the state can be seen.
-  if (import.meta.env?.DEV) return createMockDocumentWorkflowService({ engineOptions: { startDelayMs: 600 } })
+  if (getServiceMode() === SERVICE_MODE.mock && import.meta.env?.DEV) return createMockDocumentWorkflowService({ engineOptions: { startDelayMs: 600 } })
   return NOT_CONNECTED_WORKFLOW
 }
 

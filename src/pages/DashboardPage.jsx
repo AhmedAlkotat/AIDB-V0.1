@@ -11,10 +11,11 @@ import { selectVisibleDocuments } from '../domain/document/access.js'
 import { getDocumentStats, getRecentDocuments } from '../domain/dashboard/stats.js'
 import { useCurrentUser } from '../hooks/useCurrentUser.js'
 import { useDocumentDeletion } from '../hooks/useDocumentDeletion.jsx'
-import { useDocumentList } from '../hooks/useDocumentList.js'
+import { useDocumentListState } from '../hooks/useDocumentListState.js'
 import { useTranslation } from '../hooks/useTranslation.js'
 import { ROUTES } from '../routes/paths.js'
-import { documentStore } from '../services/documentStore.js'
+import { documentService } from '../services/documentService.js'
+import { Alert } from '../components/common/Alert.jsx'
 
 // Role-based dashboard.
 //
@@ -23,14 +24,15 @@ import { documentStore } from '../services/documentStore.js'
 //
 // Document figures are computed from the documents the signed-in user may see
 // (domain/document/access.js), so they always agree with the queue and the archive. Until a
-// backend exists those documents live in this browser tab's memory (documentStore, not
-// durable, including the labelled demonstration documents), and the section says so.
+// backend exists those documents live in this browser tab's memory (the development simulation behind the
+// document service, not durable, including the labelled demonstration documents), and the section says so.
 export default function DashboardPage() {
   const { t, formatNumber } = useTranslation()
   const user = useCurrentUser()
   const isAdmin = user.role === USER_ROLES.orgAdmin
   const scope = isAdmin ? 'admin' : 'employee'
-  const documents = selectVisibleDocuments(useDocumentList(), user)
+  const list = useDocumentListState()
+  const documents = selectVisibleDocuments(list.items, user)
   const stats = getDocumentStats(documents)
   const recent = getRecentDocuments(documents)
   const deletion = useDocumentDeletion()
@@ -52,8 +54,24 @@ export default function DashboardPage() {
       <section aria-labelledby="overview-heading">
         <div className="section-heading">
           <h2 id="overview-heading">{t(`dashboard.documents.${scope}Title`)}</h2>
-          {!documentStore.isDurable && <DemoBadge />}
+          {documentService.isMock && <DemoBadge />}
         </div>
+        {list.status === 'loading' && (
+          <p className="auth-loading" role="status">
+            <span className="spinner" aria-hidden="true" />
+            {t('common.loading')}
+          </p>
+        )}
+        {list.status === 'error' && (
+          <Alert tone="error" title={t('common.loadFailed')}>
+            <p>
+              <button type="button" className="button button--secondary button--sm" onClick={() => list.reload()}>
+                <Icon name="refresh" size={16} />
+                {t('common.retry')}
+              </button>
+            </p>
+          </Alert>
+        )}
         <div className="stats-grid">
           <StatCard label={t(`dashboard.documents.${scope}Total`)} value={formatNumber(stats.total)} icon="fileText" tone="navy" />
           <StatCard label={t('dashboard.documents.approved')} value={formatNumber(stats.approved)} icon="checkCircle" tone="teal" />
@@ -66,7 +84,7 @@ export default function DashboardPage() {
             </li>
           ))}
         </ul>
-        {!documentStore.isDurable && (
+        {documentService.isMock && (
           <p className="demo-note">
             <Icon name="info" size={18} />
             {t('dashboard.documents.temporaryNote')}

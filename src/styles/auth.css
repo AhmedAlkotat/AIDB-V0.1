@@ -143,3 +143,20 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* Shown while the session ended but unsaved work is still on screen (SessionExpiredBanner). */
+.session-expired {
+  margin-block-end: 16px;
+}
+
+.session-expired__form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block-start: 8px;
+}
+
+.session-expired__form .form-field__input {
+  flex: 1 1 160px;
+  min-width: 0;
+}
